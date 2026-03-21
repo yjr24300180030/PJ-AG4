@@ -151,13 +151,7 @@ $$
 若 Agent $i$ 缺货，而 Agent $j$ 有富余，则 $j$ 是否愿意对 $i$ 提供节点，由下式决定：
 
 $$
-P^{\text{coop}}_{j \to i,t}
-=
-\sigma \left(
-\alpha_0 + \alpha_1 R_{i,t}
-- \alpha_2 \frac{y_{j,t}}{A_{j,t} + 1}
-- \alpha_3 dump_{i,t-1}
-\right)
+P^{\text{coop}}_{j \to i,t}=\sigma \left(\alpha_0 + \alpha_1 R_{i,t}- \alpha_2 \frac{y_{j,t}}{A_{j,t} + 1}- \alpha_3 dump_{i,t-1}\right)
 $$
 
 其中：
@@ -175,14 +169,7 @@ $$
 #### 实际拆借量
 
 $$
-m_{j \to i,t}
-=
-z_{j \to i,t} \cdot
-\min \left(
-surplus^{rem}_{j,t},
-short^{rem}_{i,t},
-\bar m
-\right)
+m_{j \to i,t}=z_{j \to i,t} \cdot\min \left(surplus^{rem}_{j,t},short^{rem}_{i,t},\bar m\right)
 $$
 
 $$
@@ -194,11 +181,7 @@ $$
 #### 拆借后的有效供给
 
 $$
-\tilde A_{i,t}
-=
-A_{i,t}
-+ \sum_{j \neq i} m_{j \to i,t}
-- \sum_{k \neq i} m_{i \to k,t}
+\tilde A_{i,t}=A_{i,t}+ \sum_{j \neq i} m_{j \to i,t}- \sum_{k \neq i} m_{i \to k,t}
 $$
 
 ### 1.7 成交量、违约量与技术折旧
@@ -245,17 +228,7 @@ $$
 项目采用如下统一收益函数对每个 Agent 进行结算：
 
 $$
-\pi_{i,t}
-=
-p_{i,t} x_{i,t}
-+ \sum_{k \neq i} w^{tr}_{i \to k,t} m_{i \to k,t}
-- \sum_{j \neq i} w^{tr}_{j \to i,t} m_{j \to i,t}
-- c_i q_{i,t}
-- \frac{\gamma_i}{2} q_{i,t}^2
-- h_i I_{i,t+1}
-- \psi_i obsol_{i,t}
-- \lambda_i short_{i,t}
-- \chi_i |p_{i,t} - p_{i,t-1}|
+\pi_{i,t}=p_{i,t} x_{i,t}+ \sum_{k \neq i} w^{tr}_{i \to k,t} m_{i \to k,t}- \sum_{j \neq i} w^{tr}_{j \to i,t} m_{j \to i,t}- c_i q_{i,t}- \frac{\gamma_i}{2} q_{i,t}^2- h_i I_{i,t+1}- \psi_i obsol_{i,t}- \lambda_i short_{i,t}- \chi_i |p_{i,t} - p_{i,t-1}|
 $$
 
 其中：
@@ -362,10 +335,7 @@ $$
 #### 周期项
 
 $$
-S_t
-=
-A_7 \sin \left(\frac{2\pi t}{7}\right)
-+ A_{30} \sin \left(\frac{2\pi t}{30} + \phi\right)
+S_t=A_7 \sin \left(\frac{2\pi t}{7}\right)+ A_{30} \sin \left(\frac{2\pi t}{30} + \phi\right)
 $$
 
 解释：
@@ -446,17 +416,7 @@ $$
 
 则 Agent $i$ 在第 $t$ 轮的观测集定义为：
 
-$$
-\mathcal O_{i,t}
-=
-\Big\{
-\tilde D_{\tau},\ p_{1:3,\tau},\ R_{1:3,\tau}
-\Big\}_{\tau=t-W}^{t-1}
-\cup
-\Big\{
-I_{i,t},\ \pi_{i,t-1},\ short_{i,t-1}
-\Big\}
-$$
+$$\mathcal{O}_{i,t}=\left\lbrace \tilde{D}_{\tau},p_{1:3,\tau},R_{1:3,\tau}\right\rbrace_{\tau=t-W}^{t-1}\cup\left\lbrace I_{i,t},\pi_{i,t-1},\text{short}_{i,t-1}\right\rbrace$$
 
 其中：
 
@@ -517,9 +477,7 @@ $$
 #### 履约率
 
 $$
-service_{i,t}
-=
-\frac{x_{i,t}}{\max(1,y_{i,t})}
+service_{i,t}=\frac{x_{i,t}}{\max(1,y_{i,t})}
 $$
 
 #### 恶意倾销判定
@@ -533,14 +491,7 @@ $$
 若满足：
 
 $$
-dump_{i,t}
-=
-\mathbf{1}
-\left(
-p_{i,t} < mc_{i,t}
-\land
-p_{i,t} < 0.85 \cdot median_{j \neq i}(p_{j,t})
-\right)
+dump_{i,t} = \mathbf{1} \left( p_{i,t} < mc_{i,t} \land p_{i,t} < 0.85 \cdot \text{median}_{j \neq i}(p_{j,t}) \right)
 $$
 
 则认定为恶意倾销。对应含义是：低于自身边际成本并明显低于同行价格中位数，属于以破坏性价格战抢夺算力客户。
@@ -548,12 +499,7 @@ $$
 #### 严重违约判定
 
 $$
-default_{i,t}
-=
-\mathbf{1}
-\left(
-\frac{short_{i,t}}{\max(1,y_{i,t})} > 0.1
-\right)
+default_{i,t}=\mathbf{1}\left(\frac{short_{i,t}}{\max(1,y_{i,t})} > 0.1\right)
 $$
 
 即若最终无法交付超过 10% 的已分配需求，则认定为严重 SLA 违约。
@@ -562,9 +508,7 @@ $$
 
 $$
 help_{i,t}
-=
-\frac{\sum_{k \neq i} m_{i \to k,t}}
-{\max(1,\ surplus^{(0)}_{i,t})}
+=\frac{\sum_{k \neq i} m_{i \to k,t}}{\max(1,\ surplus^{(0)}_{i,t})}
 $$
 
 若 Agent 在自己有富余节点时主动支援同行，则可获得正向声誉增益。
@@ -573,25 +517,14 @@ $$
 
 $$
 score_{i,t}
-=
-clip\left(
-service_{i,t}
-+ 0.2 \cdot help_{i,t}
-- 0.4 \cdot dump_{i,t}
-- 0.6 \cdot default_{i,t},
-\ 0,\ 1
-\right)
+=clip\left(service_{i,t}+ 0.2 \cdot help_{i,t}- 0.4 \cdot dump_{i,t}- 0.6 \cdot default_{i,t},\ 0,\ 1\right)
 $$
 
 #### 声誉更新
 
 $$
 R_{i,t+1}
-=
-clip\left(
-(1 - \eta_R) R_{i,t} + \eta_R score_{i,t},
-\ 0,\ 1
-\right)
+=clip\left((1 - \eta_R) R_{i,t} + \eta_R score_{i,t},\ 0,\ 1\right)
 $$
 
 其中：
@@ -615,13 +548,7 @@ $$
 #### 路径二：影响同行拆借成功率
 
 $$
-P^{\text{coop}}_{j \to i,t}
-=
-\sigma \left(
-\alpha_0 + \alpha_1 R_{i,t}
-- \alpha_2 \frac{y_{j,t}}{A_{j,t} + 1}
-- \alpha_3 dump_{i,t-1}
-\right)
+P^{\text{coop}}_{j \to i,t}=\sigma \left(\alpha_0 + \alpha_1 R_{i,t}- \alpha_2 \frac{y_{j,t}}{A_{j,t} + 1}- \alpha_3 dump_{i,t-1}\right)
 $$
 
 声誉越差，同行越不愿在关键时刻借出节点帮助其交付大客户。于是，早期价格战会通过后续拆借能力下降反噬自身利润。
