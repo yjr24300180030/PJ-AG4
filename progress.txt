@@ -1,0 +1,16 @@
+Done:
+- Documentation scaffold created.
+- Project design under `docs/project_design.md` is the source scenario.
+- Implementation-oriented doc stack completed.
+- Python package skeleton, baseline agents, environment, CSV export, and plotting are implemented.
+- `pytest` passes and the CLI smoke run generates output artifacts.
+
+In Progress:
+- Tightening artifact naming and repository onboarding docs.
+
+Next:
+- Expand the baseline chart set beyond the single summary figure.
+- Add optional LLM-backed agent adapters behind a local interface.
+
+Known Bugs:
+- None confirmed in the baseline heuristic path.

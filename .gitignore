@@ -9,3 +9,4 @@ env/
 .env
 dist/
 build/
+outputs/
