@@ -10,13 +10,15 @@ Done:
 - Agent decisions now run through a staged pipeline with `Forecaster`, `Pricer`, `Allocator`, and `RiskGate` responsibilities.
 - `quant/` now consumes the shared simulation entrypoint instead of monkey-patching core agent builders.
 - The refactored heuristic path, quant path, and 1-round LLM smoke path all run successfully.
+- Agent personality is now expressed through stage-style combinations in the decision chain, not only through top-level role names.
+- Styled heuristic and styled LLM smoke runs complete successfully.
 
 In Progress:
 - None.
 
 Next:
 - Expand the report artifact beyond the single summary figure and add richer strategy commentary.
-- Consider splitting `agents.py` further now that provider, observation, and runtime layers are isolated.
+- Consider splitting `agents.py` further now that provider, observation, runtime, and style logic are isolated conceptually.
 - Add more direct tests around strategy registration and stage-level behavior.
 
 Known Bugs:

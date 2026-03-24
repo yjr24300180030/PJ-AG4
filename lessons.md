@@ -25,3 +25,9 @@
 - Root cause: the core runtime did not expose a stable public hook for strategy selection and observation assembly.
 - Rule: research tooling must consume the shared simulation entrypoint and strategy registry instead of replacing internal builders or copying the per-round loop.
 - Verification: `quant/run_benchmarks.py` and `quant/common.py` now call the shared simulation path, and smoke runs complete without monkey-patching.
+
+### 2026-03-24
+- Problem: a decision pipeline can look more sophisticated without actually having distinct behavioral styles at each stage.
+- Root cause: if all stage outputs are effectively driven by one undifferentiated policy, the pipeline becomes structural only and loses explanatory value.
+- Rule: when introducing staged agent pipelines, encode explicit stage-style profiles in configuration and let both heuristic logic and LLM prompting consume them.
+- Verification: agent configs now carry forecaster, pricer, allocator, and risk styles, and styled simulation runs produce more distinct pricing and allocation behavior across agents.

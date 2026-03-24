@@ -12,6 +12,64 @@ from .utils import int_round_to_step, round_to_step, weighted_forecast
 _build_openai_client = build_openai_client
 
 
+FORECASTER_STYLE_GUIDANCE = {
+    "momentum_chaser": "Lean into trend continuation and respond quickly to rising demand pressure.",
+    "signal_smoother": "Discount noisy spikes and prefer stable, reputation-aware demand estimates.",
+    "volatility_reader": "React to short-term volatility and treat market swings as exploitable signals.",
+}
+
+PRICER_STYLE_GUIDANCE = {
+    "share_grabber": "Use aggressive pricing to capture flow and tolerate thinner margins.",
+    "premium_keeper": "Protect price discipline and monetize reputation with a durable premium.",
+    "spread_hunter": "Adjust prices tactically to capture transient spread and inventory opportunities.",
+}
+
+ALLOCATOR_STYLE_GUIDANCE = {
+    "capacity_expander": "Keep capacity ready and scale supply ahead of demand when possible.",
+    "buffered_allocator": "Hold a moderate service buffer without overcommitting capital.",
+    "inventory_light": "Stay light on inventory and favor flexibility over large buffers.",
+}
+
+RISK_STYLE_GUIDANCE = {
+    "growth_tolerant": "Allow aggressive proposals unless they break hard market constraints.",
+    "sla_guard": "Protect SLA reliability, price floor discipline, and brand reputation first.",
+    "inventory_guard": "Avoid inventory bloat and tighten exposure when volatility is elevated.",
+}
+
+
+def _forecaster_style_adjustment(style: str, observation: MarketObservation, trend: float) -> float:
+    if style == "momentum_chaser":
+        return 0.20 * trend + 0.06 * observation.market_volatility + 0.04 * max(0.0, observation.own_last_shortage)
+    if style == "signal_smoother":
+        return -0.08 * trend + 0.05 * observation.own_reputation - 0.03 * observation.market_volatility
+    if style == "volatility_reader":
+        return 0.12 * trend + 0.14 * observation.market_volatility
+    return 0.0
+
+
+def _pricer_style_adjustment(style: str, observation: MarketObservation, forecast: int) -> float:
+    inventory_pressure = max(0.0, observation.own_inventory - 15.0) / 100.0
+    shortage_pressure = max(0.0, observation.own_last_shortage) / max(1.0, forecast)
+    if style == "share_grabber":
+        return -0.22 - 0.05 * observation.market_volatility - 0.16 * shortage_pressure
+    if style == "premium_keeper":
+        return 0.30 + 0.18 * observation.own_reputation + 0.03 * observation.market_volatility
+    if style == "spread_hunter":
+        return 0.04 - 0.16 * inventory_pressure + 0.05 * observation.market_volatility
+    return 0.0
+
+
+def _allocator_style_adjustment(style: str, observation: MarketObservation, forecast: int) -> float:
+    forecast_gap = max(0.0, forecast - observation.own_inventory)
+    if style == "capacity_expander":
+        return 0.22 * forecast_gap + max(0.0, 10.0 - observation.own_inventory) * 0.5
+    if style == "buffered_allocator":
+        return -0.10 * forecast + max(0.0, 18.0 - observation.own_inventory) * 0.4
+    if style == "inventory_light":
+        return -0.18 * forecast + 0.60 * observation.market_volatility
+    return 0.0
+
+
 class RiskGateStage:
     def __init__(self, config: AgentConfig) -> None:
         self._config = config
@@ -23,18 +81,34 @@ class RiskGateStage:
         *,
         fallback: AgentAction | None = None,
     ) -> AgentAction:
-        del observation
-        del fallback
+        reviewed_price = draft.price
+        reviewed_quantity = float(draft.quantity)
+        reviewed_forecast = draft.forecast_demand
+        style = self._config.risk_style
+        if style == "growth_tolerant":
+            if observation.own_last_shortage > 0:
+                reviewed_quantity += self._config.quantity_step
+        elif style == "sla_guard":
+            reviewed_price = max(reviewed_price, observation.market_avg_price)
+            if observation.own_last_shortage > 0 or observation.own_reputation < 0.85:
+                reviewed_quantity = min(reviewed_quantity, max(0.0, reviewed_forecast * 0.80))
+        elif style == "inventory_guard":
+            target_total = max(reviewed_forecast * 0.75 + 12.0, 20.0)
+            reviewed_quantity = min(reviewed_quantity, max(0.0, target_total - observation.own_inventory))
+            if observation.market_volatility > 5.0:
+                reviewed_price = max(reviewed_price, observation.market_avg_price)
+        if fallback is not None and observation.own_reputation < 0.35:
+            reviewed_price = max(reviewed_price, fallback.price)
         return AgentAction(
-            forecast_demand=max(0, int(round(draft.forecast_demand))),
+            forecast_demand=max(0, int(round(reviewed_forecast))),
             price=round_to_step(
-                draft.price,
+                reviewed_price,
                 self._config.price_step,
                 self._config.price_floor,
                 self._config.price_ceiling,
             ),
             quantity=int_round_to_step(
-                draft.quantity,
+                reviewed_quantity,
                 self._config.quantity_step,
                 0,
                 self._config.max_quantity,
@@ -55,6 +129,7 @@ class HeuristicForecasterStage:
             trend = (history[-1] - history[0]) / max(1, len(history) - 1)
         forecast = 0.7 * base + 0.3 * (history[-1] if history else observation.observed_demand)
         forecast += self._agent._forecast_adjustment(observation, trend)
+        forecast += _forecaster_style_adjustment(self._agent.config.forecaster_style, observation, trend)
         return max(0, int(round(forecast)))
 
 
@@ -71,6 +146,7 @@ class HeuristicPricerStage:
     ) -> float:
         del fallback
         value = self._agent.config.base_price + self._agent._price_adjustment(observation, forecast)
+        value += _pricer_style_adjustment(self._agent.config.pricer_style, observation, forecast)
         return round_to_step(
             value,
             self._agent.config.price_step,
@@ -94,6 +170,7 @@ class HeuristicAllocatorStage:
         del price
         del fallback
         target = self._agent._quantity_target(observation, forecast)
+        target += _allocator_style_adjustment(self._agent.config.allocator_style, observation, forecast)
         return int_round_to_step(target, self._agent.config.quantity_step, 0, self._agent.config.max_quantity)
 
 
@@ -251,9 +328,18 @@ class LLMPlanningStage:
 
     def _system_prompt(self, *, compact: bool) -> str:
         role_guidance = ROLE_GUIDANCE.get(self._config.role, "Act as a rational market participant.")
+        stage_guidance = (
+            f"Agent persona: {self._config.persona}\n"
+            "Decision chain style:\n"
+            f"- Forecaster: {FORECASTER_STYLE_GUIDANCE.get(self._config.forecaster_style, self._config.forecaster_style)}\n"
+            f"- Pricer: {PRICER_STYLE_GUIDANCE.get(self._config.pricer_style, self._config.pricer_style)}\n"
+            f"- Allocator: {ALLOCATOR_STYLE_GUIDANCE.get(self._config.allocator_style, self._config.allocator_style)}\n"
+            f"- RiskGate: {RISK_STYLE_GUIDANCE.get(self._config.risk_style, self._config.risk_style)}\n"
+        )
         prompt = (
             "You are a market simulation agent in a repeated GPU spot market game.\n"
             f"{role_guidance}\n"
+            f"{stage_guidance}"
             "Return only valid JSON with exactly these keys: "
             '"forecast_demand", "price", "quantity".\n'
             "Use numeric values only. Do not add markdown or explanations."
@@ -268,6 +354,13 @@ class LLMPlanningStage:
         payload = {
             "agent_name": self._config.name,
             "agent_role": self._config.role,
+            "agent_persona": self._config.persona,
+            "stage_styles": {
+                "forecaster": self._config.forecaster_style,
+                "pricer": self._config.pricer_style,
+                "allocator": self._config.allocator_style,
+                "risk_gate": self._config.risk_style,
+            },
             "round_index": observation.round_index,
             "observed_demand": observation.observed_demand,
             "observed_demand_history": list(observation.observed_demand_history[-5:]),

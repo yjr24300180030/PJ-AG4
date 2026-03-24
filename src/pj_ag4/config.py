@@ -34,6 +34,11 @@ class MarketConfig:
 class AgentConfig:
     name: str
     role: str
+    persona: str
+    forecaster_style: str
+    pricer_style: str
+    allocator_style: str
+    risk_style: str
     base_price: float
     price_floor: float
     price_ceiling: float
@@ -87,6 +92,11 @@ def default_simulation_config(
         AgentConfig(
             name="Hyperscaler",
             role="hyperscaler",
+            persona="Scale-dominant operator that values throughput, market share, and capacity continuity.",
+            forecaster_style="momentum_chaser",
+            pricer_style="share_grabber",
+            allocator_style="capacity_expander",
+            risk_style="growth_tolerant",
             base_price=4.6,
             price_floor=4.0,
             price_ceiling=6.0,
@@ -106,6 +116,11 @@ def default_simulation_config(
         AgentConfig(
             name="PremiumCloud",
             role="premium",
+            persona="SLA-first premium operator that protects brand, uptime, and disciplined monetization.",
+            forecaster_style="signal_smoother",
+            pricer_style="premium_keeper",
+            allocator_style="buffered_allocator",
+            risk_style="sla_guard",
             base_price=5.4,
             price_floor=4.4,
             price_ceiling=7.0,
@@ -125,6 +140,11 @@ def default_simulation_config(
         AgentConfig(
             name="SpotBroker",
             role="spot",
+            persona="Fast-moving spot broker that hunts volatility and preserves light, flexible inventory.",
+            forecaster_style="volatility_reader",
+            pricer_style="spread_hunter",
+            allocator_style="inventory_light",
+            risk_style="inventory_guard",
             base_price=4.9,
             price_floor=3.8,
             price_ceiling=6.4,
