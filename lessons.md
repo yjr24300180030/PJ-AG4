@@ -13,3 +13,9 @@
 - Root cause: agent outputs from external model endpoints are less structured than deterministic heuristic code.
 - Rule: every LLM-backed policy path must keep a local fallback action and must not hardcode secrets into tracked files.
 - Verification: `LLMPolicyAgent` falls back to heuristic behavior on parse or request failure, and the API key is passed via CLI or environment variable.
+
+### 2026-03-24
+- Problem: some OpenAI-compatible endpoints can return `finish_reason="length"` and cut the JSON object mid-stream.
+- Root cause: the model exceeded the output token cap before finishing the structured response.
+- Rule: the LLM adapter must treat `finish_reason="length"` as a retry signal and retry once with a more compact JSON-only prompt and a larger token cap.
+- Verification: the LLM test suite now includes a mocked `finish_reason="length"` first response and succeeds on retry.

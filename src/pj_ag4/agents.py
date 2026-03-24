@@ -39,6 +39,7 @@ def _build_openai_client(llm_config: LLMConfig):
     return OpenAI(
         base_url=llm_config.base_url,
         api_key=llm_config.api_key,
+        timeout=llm_config.timeout_seconds,
     )
 
 
@@ -62,6 +63,11 @@ def _safe_message_content(message: Any) -> str:
                 parts.append(text)
         return "\n".join(parts)
     return str(content)
+
+
+def _choice_finish_reason(choice: Any) -> str | None:
+    finish_reason = getattr(choice, "finish_reason", None)
+    return str(finish_reason) if finish_reason is not None else None
 
 
 class HeuristicAgent:
@@ -187,75 +193,115 @@ class LLMPolicyAgent(HeuristicAgent):
     def _query_llm(self, observation: MarketObservation, fallback: AgentAction) -> dict[str, Any]:
         if not self._llm_config.api_key:
             raise ValueError("missing LLM API key")
-        response = self._client.chat.completions.create(
-            model=self._llm_config.model,
-            temperature=self._llm_config.temperature,
-            max_tokens=self._llm_config.max_tokens,
-            messages=[
-                {
-                    "role": "system",
-                    "content": self._system_prompt(),
-                },
-                {
-                    "role": "user",
-                    "content": self._user_prompt(observation, fallback),
-                },
-            ],
-        )
-        raw_content = _safe_message_content(response.choices[0].message)
-        return _extract_json_object(raw_content)
+        messages = [
+            {
+                "role": "system",
+                "content": self._system_prompt(compact=False),
+            },
+            {
+                "role": "user",
+                "content": self._user_prompt(observation, fallback, compact=False),
+            },
+        ]
+        max_tokens = self._llm_config.max_tokens
+        last_error: Exception | None = None
+        total_attempts = self._llm_config.max_retries + 1
+        for attempt in range(total_attempts):
+            response = self._client.chat.completions.create(
+                model=self._llm_config.model,
+                temperature=self._llm_config.temperature,
+                max_tokens=max_tokens,
+                messages=messages,
+            )
+            choice = response.choices[0]
+            finish_reason = _choice_finish_reason(choice)
+            raw_content = _safe_message_content(choice.message).strip()
+            try:
+                return _extract_json_object(raw_content)
+            except Exception as exc:
+                last_error = exc
+                if finish_reason != "length" and raw_content:
+                    break
+                if attempt >= total_attempts - 1:
+                    break
+                max_tokens = min(max_tokens * 2, 2048)
+                messages = [
+                    {
+                        "role": "system",
+                        "content": self._system_prompt(compact=True),
+                    },
+                    {
+                        "role": "user",
+                        "content": self._user_prompt(observation, fallback, compact=True),
+                    },
+                ]
+        raise ValueError(f"LLM output parse failed: {last_error}") from last_error
 
-    def _system_prompt(self) -> str:
+    def _system_prompt(self, *, compact: bool) -> str:
         role_guidance = ROLE_GUIDANCE.get(self.config.role, "Act as a rational market participant.")
-        return (
+        prompt = (
             "You are a market simulation agent in a repeated GPU spot market game.\n"
             f"{role_guidance}\n"
             "Return only valid JSON with exactly these keys: "
             '"forecast_demand", "price", "quantity".\n'
             "Use numeric values only. Do not add markdown or explanations."
         )
+        if compact:
+            prompt += "\nOutput one minified JSON object on a single line. Keep it under 40 tokens."
+        return prompt
 
-    def _user_prompt(self, observation: MarketObservation, fallback: AgentAction) -> str:
+    def _user_prompt(self, observation: MarketObservation, fallback: AgentAction, *, compact: bool) -> str:
         history_prices = [list(round_prices) for round_prices in observation.price_history[-5:]]
         history_reputation = [list(round_reputations) for round_reputations in observation.reputation_history[-5:]]
-        return json.dumps(
-            {
-                "agent_name": self.config.name,
-                "agent_role": self.config.role,
+        payload = {
+            "agent_name": self.config.name,
+            "agent_role": self.config.role,
+            "round_index": observation.round_index,
+            "observed_demand": observation.observed_demand,
+            "observed_demand_history": list(observation.observed_demand_history[-5:]),
+            "price_history": history_prices,
+            "reputation_history": history_reputation,
+            "peer_reputations": list(observation.peer_reputations),
+            "own_inventory": observation.own_inventory,
+            "own_last_profit": observation.own_last_profit,
+            "own_last_shortage": observation.own_last_shortage,
+            "own_reputation": observation.own_reputation,
+            "market_avg_price": observation.market_avg_price,
+            "market_volatility": observation.market_volatility,
+            "legal_price_range": {
+                "min": self.config.price_floor,
+                "max": self.config.price_ceiling,
+                "step": self.config.price_step,
+            },
+            "legal_quantity_range": {
+                "min": 0,
+                "max": self.config.max_quantity,
+                "step": self.config.quantity_step,
+            },
+            "fallback_action": {
+                "forecast_demand": fallback.forecast_demand,
+                "price": fallback.price,
+                "quantity": fallback.quantity,
+            },
+            "instruction": (
+                "Choose one-round-ahead demand forecast, price, and added quantity. "
+                "Stay within legal ranges. Favor valid JSON over verbosity."
+            ),
+        }
+        if compact:
+            payload = {
                 "round_index": observation.round_index,
                 "observed_demand": observation.observed_demand,
-                "observed_demand_history": list(observation.observed_demand_history[-5:]),
-                "price_history": history_prices,
-                "reputation_history": history_reputation,
-                "peer_reputations": list(observation.peer_reputations),
                 "own_inventory": observation.own_inventory,
-                "own_last_profit": observation.own_last_profit,
-                "own_last_shortage": observation.own_last_shortage,
                 "own_reputation": observation.own_reputation,
                 "market_avg_price": observation.market_avg_price,
                 "market_volatility": observation.market_volatility,
-                "legal_price_range": {
-                    "min": self.config.price_floor,
-                    "max": self.config.price_ceiling,
-                    "step": self.config.price_step,
-                },
-                "legal_quantity_range": {
-                    "min": 0,
-                    "max": self.config.max_quantity,
-                    "step": self.config.quantity_step,
-                },
-                "fallback_action": {
-                    "forecast_demand": fallback.forecast_demand,
-                    "price": fallback.price,
-                    "quantity": fallback.quantity,
-                },
-                "instruction": (
-                    "Choose one-round-ahead demand forecast, price, and added quantity. "
-                    "Stay within legal ranges. Favor valid JSON over verbosity."
-                ),
-            },
-            ensure_ascii=True,
-        )
+                "legal_price_range": payload["legal_price_range"],
+                "legal_quantity_range": payload["legal_quantity_range"],
+                "fallback_action": payload["fallback_action"],
+                "instruction": "Return minified JSON only with forecast_demand, price, quantity.",
+            }
+        return json.dumps(payload, ensure_ascii=True, separators=(",", ":"))
 
 
 def _build_heuristic_agent(cfg: AgentConfig) -> HeuristicAgent:

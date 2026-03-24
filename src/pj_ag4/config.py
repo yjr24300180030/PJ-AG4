@@ -57,7 +57,9 @@ class LLMConfig:
     api_key: str | None = None
     model: str = "gemini-3-flash"
     temperature: float = 0.0
-    max_tokens: int = 220
+    max_tokens: int = 512
+    max_retries: int = 1
+    timeout_seconds: float = 30.0
 
 
 @dataclass(frozen=True)
