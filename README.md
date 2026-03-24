@@ -22,7 +22,7 @@ Formal project design for the high-end GPU spot market and supply-chain game:
 Install the package in editable mode and run the baseline simulation:
 
 ```bash
-python3 -m pip install -e .[dev]
+python3 -m pip install -e '.[dev]' --no-build-isolation
 pj-ag4-run --rounds 30 --output-dir outputs/default_run
 ```
 
@@ -30,6 +30,24 @@ You can also run the bundled script directly:
 
 ```bash
 python3 scripts/run_simulation.py --rounds 30 --output-dir outputs/default_run
+```
+
+Run with the LLM-backed agent mode against an OpenAI-compatible local endpoint:
+
+```bash
+pj-ag4-run \
+  --agent-mode llm \
+  --llm-base-url http://127.0.0.1:8045/v1 \
+  --llm-model gemini-3-flash \
+  --llm-api-key "$PJ_AG4_OPENAI_API_KEY" \
+  --rounds 10 \
+  --output-dir outputs/llm_run
+```
+
+The repository does not hardcode API secrets. Set the key before running:
+
+```bash
+export PJ_AG4_OPENAI_API_KEY="your-key-here"
 ```
 
 Artifacts:
@@ -45,4 +63,4 @@ pytest
 
 ## Status
 
-Repository initialized with formal design docs, a runnable Python simulation skeleton, CSV export, chart generation, and tests.
+Repository initialized with formal design docs, a runnable Python simulation skeleton, switchable heuristic and LLM agent modes, CSV export, chart generation, and tests.

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
+from typing import Any
 from typing import Sequence
 
-from .config import AgentConfig
-from .utils import clamp, int_round_to_step, rolling_mean, rolling_volatility, round_to_step, weighted_forecast
+from .config import AgentConfig, LLMConfig
+from .utils import int_round_to_step, rolling_volatility, round_to_step, weighted_forecast
 
 
 @dataclass(frozen=True)
@@ -29,6 +31,37 @@ class MarketObservation:
     own_reputation: float
     market_avg_price: float
     market_volatility: float
+
+
+def _build_openai_client(llm_config: LLMConfig):
+    from openai import OpenAI
+
+    return OpenAI(
+        base_url=llm_config.base_url,
+        api_key=llm_config.api_key,
+    )
+
+
+def _extract_json_object(raw_text: str) -> dict[str, Any]:
+    start = raw_text.find("{")
+    end = raw_text.rfind("}")
+    if start < 0 or end < start:
+        raise ValueError("no JSON object found in LLM response")
+    return json.loads(raw_text[start : end + 1])
+
+
+def _safe_message_content(message: Any) -> str:
+    content = getattr(message, "content", "")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            text = getattr(item, "text", None)
+            if text:
+                parts.append(text)
+        return "\n".join(parts)
+    return str(content)
 
 
 class HeuristicAgent:
@@ -109,16 +142,156 @@ class SpotBrokerAgent(HeuristicAgent):
         return forecast * 0.58 + observation.market_volatility * 0.8 + max(0.0, 10.0 - observation.own_inventory) * 0.5
 
 
-def build_agents(configs: Sequence[AgentConfig]) -> dict[str, HeuristicAgent]:
-    agents: dict[str, HeuristicAgent] = {}
-    for cfg in configs:
-        if cfg.role == "hyperscaler":
-            agents[cfg.name] = HyperscalerAgent(cfg)
-        elif cfg.role == "premium":
-            agents[cfg.name] = PremiumCloudAgent(cfg)
-        elif cfg.role == "spot":
-            agents[cfg.name] = SpotBrokerAgent(cfg)
-        else:
-            agents[cfg.name] = HeuristicAgent(cfg)
-    return agents
+ROLE_GUIDANCE = {
+    "hyperscaler": "You are the scale leader. Prioritize market share and continuity while avoiding catastrophic overstock.",
+    "premium": "You are the premium cloud provider. Prioritize reputation, SLA stability, and disciplined pricing.",
+    "spot": "You are the spot broker. Prioritize agility, short-term opportunities, and inventory flexibility.",
+}
 
+
+class LLMPolicyAgent(HeuristicAgent):
+    def __init__(
+        self,
+        config: AgentConfig,
+        *,
+        llm_config: LLMConfig,
+        fallback_agent: HeuristicAgent,
+        client: Any,
+    ) -> None:
+        super().__init__(config)
+        self._llm_config = llm_config
+        self._fallback_agent = fallback_agent
+        self._client = client
+
+    def decide(self, observation: MarketObservation) -> AgentAction:
+        fallback = self._fallback_agent.decide(observation)
+        try:
+            parsed = self._query_llm(observation, fallback)
+            forecast = max(0, int(round(float(parsed.get("forecast_demand", fallback.forecast_demand)))))
+            price = round_to_step(
+                float(parsed.get("price", fallback.price)),
+                self.config.price_step,
+                self.config.price_floor,
+                self.config.price_ceiling,
+            )
+            quantity = int_round_to_step(
+                float(parsed.get("quantity", fallback.quantity)),
+                self.config.quantity_step,
+                0,
+                self.config.max_quantity,
+            )
+            return AgentAction(forecast_demand=forecast, price=price, quantity=quantity)
+        except Exception:
+            return fallback
+
+    def _query_llm(self, observation: MarketObservation, fallback: AgentAction) -> dict[str, Any]:
+        if not self._llm_config.api_key:
+            raise ValueError("missing LLM API key")
+        response = self._client.chat.completions.create(
+            model=self._llm_config.model,
+            temperature=self._llm_config.temperature,
+            max_tokens=self._llm_config.max_tokens,
+            messages=[
+                {
+                    "role": "system",
+                    "content": self._system_prompt(),
+                },
+                {
+                    "role": "user",
+                    "content": self._user_prompt(observation, fallback),
+                },
+            ],
+        )
+        raw_content = _safe_message_content(response.choices[0].message)
+        return _extract_json_object(raw_content)
+
+    def _system_prompt(self) -> str:
+        role_guidance = ROLE_GUIDANCE.get(self.config.role, "Act as a rational market participant.")
+        return (
+            "You are a market simulation agent in a repeated GPU spot market game.\n"
+            f"{role_guidance}\n"
+            "Return only valid JSON with exactly these keys: "
+            '"forecast_demand", "price", "quantity".\n'
+            "Use numeric values only. Do not add markdown or explanations."
+        )
+
+    def _user_prompt(self, observation: MarketObservation, fallback: AgentAction) -> str:
+        history_prices = [list(round_prices) for round_prices in observation.price_history[-5:]]
+        history_reputation = [list(round_reputations) for round_reputations in observation.reputation_history[-5:]]
+        return json.dumps(
+            {
+                "agent_name": self.config.name,
+                "agent_role": self.config.role,
+                "round_index": observation.round_index,
+                "observed_demand": observation.observed_demand,
+                "observed_demand_history": list(observation.observed_demand_history[-5:]),
+                "price_history": history_prices,
+                "reputation_history": history_reputation,
+                "peer_reputations": list(observation.peer_reputations),
+                "own_inventory": observation.own_inventory,
+                "own_last_profit": observation.own_last_profit,
+                "own_last_shortage": observation.own_last_shortage,
+                "own_reputation": observation.own_reputation,
+                "market_avg_price": observation.market_avg_price,
+                "market_volatility": observation.market_volatility,
+                "legal_price_range": {
+                    "min": self.config.price_floor,
+                    "max": self.config.price_ceiling,
+                    "step": self.config.price_step,
+                },
+                "legal_quantity_range": {
+                    "min": 0,
+                    "max": self.config.max_quantity,
+                    "step": self.config.quantity_step,
+                },
+                "fallback_action": {
+                    "forecast_demand": fallback.forecast_demand,
+                    "price": fallback.price,
+                    "quantity": fallback.quantity,
+                },
+                "instruction": (
+                    "Choose one-round-ahead demand forecast, price, and added quantity. "
+                    "Stay within legal ranges. Favor valid JSON over verbosity."
+                ),
+            },
+            ensure_ascii=True,
+        )
+
+
+def _build_heuristic_agent(cfg: AgentConfig) -> HeuristicAgent:
+    if cfg.role == "hyperscaler":
+        return HyperscalerAgent(cfg)
+    if cfg.role == "premium":
+        return PremiumCloudAgent(cfg)
+    if cfg.role == "spot":
+        return SpotBrokerAgent(cfg)
+    return HeuristicAgent(cfg)
+
+
+def build_agents(
+    configs: Sequence[AgentConfig],
+    *,
+    mode: str = "heuristic",
+    llm_config: LLMConfig | None = None,
+) -> dict[str, HeuristicAgent]:
+    agents: dict[str, HeuristicAgent] = {}
+    normalized_mode = mode.lower()
+    client = None
+    if normalized_mode == "llm":
+        if llm_config is None:
+            raise ValueError("llm_config is required when mode='llm'")
+        if not llm_config.api_key:
+            raise ValueError("llm_config.api_key is required when mode='llm'")
+        client = _build_openai_client(llm_config)
+    for cfg in configs:
+        fallback_agent = _build_heuristic_agent(cfg)
+        if normalized_mode == "llm":
+            agents[cfg.name] = LLMPolicyAgent(
+                cfg,
+                llm_config=llm_config,
+                fallback_agent=fallback_agent,
+                client=client,
+            )
+            continue
+        agents[cfg.name] = fallback_agent
+    return agents

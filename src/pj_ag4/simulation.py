@@ -64,7 +64,7 @@ def run_simulation(
 
     generator = DemandSeriesGenerator(config.market, seed=config.seed)
     env = MarketEnvironment(config)
-    agents = build_agents(config.agents)
+    agents = build_agents(config.agents, mode=config.agent_mode, llm_config=config.llm)
     rows: list[SettlementRow] = []
     demand_history: list[int] = []
     observed_history: list[int] = []

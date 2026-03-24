@@ -4,13 +4,14 @@ Done:
 - Implementation-oriented doc stack completed.
 - Python package skeleton, baseline agents, environment, CSV export, and plotting are implemented.
 - `pytest` passes and the CLI smoke run generates output artifacts.
+- OpenAI-compatible LLM agent mode is implemented behind a CLI switch with heuristic fallback on malformed outputs.
 
 In Progress:
-- Tightening artifact naming and repository onboarding docs.
+- Verifying the LLM mode against the provided local endpoint.
 
 Next:
 - Expand the baseline chart set beyond the single summary figure.
-- Add optional LLM-backed agent adapters behind a local interface.
+- Add richer strategy-report content beyond the current figure-only PDF.
 
 Known Bugs:
 - None confirmed in the baseline heuristic path.

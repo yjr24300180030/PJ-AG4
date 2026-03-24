@@ -14,12 +14,12 @@
 - `pydantic`
 - `pytest`
 - `rich`
-- Optional later: `openai` for LLM-backed agent adapters
+- `openai` for OpenAI-compatible LLM-backed agent adapters
 
 ## External Services
 
 - None required for the baseline simulation.
-- Optional later: OpenAI API or another compatible LLM endpoint behind a local adapter interface.
+- Optional in LLM mode: OpenAI API or another compatible local endpoint behind the shared adapter interface.
 
 ## Tooling and Quality Gates
 

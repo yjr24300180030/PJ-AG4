@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import os
 from pathlib import Path
 
 
@@ -51,15 +52,35 @@ class AgentConfig:
 
 
 @dataclass(frozen=True)
+class LLMConfig:
+    base_url: str = "http://127.0.0.1:8045/v1"
+    api_key: str | None = None
+    model: str = "gemini-3-flash"
+    temperature: float = 0.0
+    max_tokens: int = 220
+
+
+@dataclass(frozen=True)
 class SimulationConfig:
     seed: int = 7
     rounds: int = 30
     output_dir: Path = Path("outputs")
+    agent_mode: str = "heuristic"
     market: MarketConfig = field(default_factory=MarketConfig)
+    llm: LLMConfig | None = None
     agents: tuple[AgentConfig, ...] = field(default_factory=tuple)
 
 
-def default_simulation_config(*, seed: int = 7, rounds: int = 30, output_dir: str | Path = "outputs") -> SimulationConfig:
+def default_simulation_config(
+    *,
+    seed: int = 7,
+    rounds: int = 30,
+    output_dir: str | Path = "outputs",
+    agent_mode: str = "heuristic",
+    llm_base_url: str | None = None,
+    llm_api_key: str | None = None,
+    llm_model: str | None = None,
+) -> SimulationConfig:
     agents = (
         AgentConfig(
             name="Hyperscaler",
@@ -119,10 +140,17 @@ def default_simulation_config(*, seed: int = 7, rounds: int = 30, output_dir: st
             menu_cost_rate=0.03,
         ),
     )
+    resolved_llm_api_key = llm_api_key or os.getenv("PJ_AG4_OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+    llm_config = LLMConfig(
+        base_url=llm_base_url or os.getenv("PJ_AG4_OPENAI_BASE_URL") or "http://127.0.0.1:8045/v1",
+        api_key=resolved_llm_api_key,
+        model=llm_model or os.getenv("PJ_AG4_OPENAI_MODEL") or "gemini-3-flash",
+    )
     return SimulationConfig(
         seed=seed,
         rounds=rounds,
         output_dir=Path(output_dir),
+        agent_mode=agent_mode,
+        llm=llm_config,
         agents=agents,
     )
-
