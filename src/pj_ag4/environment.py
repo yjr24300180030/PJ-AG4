@@ -5,8 +5,8 @@ import csv
 from pathlib import Path
 from statistics import median
 
-from .agents import AgentAction
 from .config import AgentConfig, MarketConfig, SimulationConfig
+from .contracts import AgentAction
 from .timeseries import DemandSnapshot
 from .utils import clamp, sigmoid, stable_softmax
 

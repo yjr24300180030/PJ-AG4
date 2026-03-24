@@ -19,3 +19,9 @@
 - Root cause: the model exceeded the output token cap before finishing the structured response.
 - Rule: the LLM adapter must treat `finish_reason="length"` as a retry signal and retry once with a more compact JSON-only prompt and a larger token cap.
 - Verification: the LLM test suite now includes a mocked `finish_reason="length"` first response and succeeds on retry.
+
+### 2026-03-24
+- Problem: quant experiments drifted away from the main simulation path through monkey-patching and duplicated run loops.
+- Root cause: the core runtime did not expose a stable public hook for strategy selection and observation assembly.
+- Rule: research tooling must consume the shared simulation entrypoint and strategy registry instead of replacing internal builders or copying the per-round loop.
+- Verification: `quant/run_benchmarks.py` and `quant/common.py` now call the shared simulation path, and smoke runs complete without monkey-patching.

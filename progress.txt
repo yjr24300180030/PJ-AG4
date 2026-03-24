@@ -5,13 +5,19 @@ Done:
 - Python package skeleton, baseline agents, environment, CSV export, and plotting are implemented.
 - `pytest` passes and the CLI smoke run generates output artifacts.
 - OpenAI-compatible LLM agent mode is implemented behind a CLI switch with heuristic fallback on malformed outputs.
+- Architecture refactor blueprint was added in `architecture_refactor.md`.
+- The simulation now has an explicit runtime path with `providers/`, `data/observation`, `strategy_registry`, and `core/runtime`.
+- Agent decisions now run through a staged pipeline with `Forecaster`, `Pricer`, `Allocator`, and `RiskGate` responsibilities.
+- `quant/` now consumes the shared simulation entrypoint instead of monkey-patching core agent builders.
+- The refactored heuristic path, quant path, and 1-round LLM smoke path all run successfully.
 
 In Progress:
-- Verifying the LLM mode against the provided local endpoint.
+- None.
 
 Next:
-- Expand the baseline chart set beyond the single summary figure.
-- Add richer strategy-report content beyond the current figure-only PDF.
+- Expand the report artifact beyond the single summary figure and add richer strategy commentary.
+- Consider splitting `agents.py` further now that provider, observation, and runtime layers are isolated.
+- Add more direct tests around strategy registration and stage-level behavior.
 
 Known Bugs:
 - None confirmed in the baseline heuristic path.
