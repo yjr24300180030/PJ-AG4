@@ -1,10 +1,16 @@
 # PJ-AG4
 
-LLM-driven game and market simulation project.
+LLM-driven market and game simulation project for a high-end GPU spot market and supply-chain scenario.
 
-## Project Goal
+## Overview
 
-Build a multi-agent simulation with at least 3 independent agents, reproducible payoff rules, 10+ interaction rounds, statistics, and visualizations.
+PJ-AG4 is a local, reproducible multi-agent simulation with:
+
+- 3 independent market participants
+- deterministic baseline behavior and optional LLM-backed agents
+- round-level CSV outputs
+- summary visualization artifacts
+- quant-style benchmark and sensitivity tooling
 
 ## Scenario
 
@@ -12,10 +18,36 @@ Formal project design for the high-end GPU spot market and supply-chain game:
 
 - [docs/project_design.md](docs/project_design.md)
 
-## Planned Deliverables
+AI-facing control documents are grouped under:
+
+- [docs/ai/README.md](docs/ai/README.md)
+- [docs/ai/AGENT.md](docs/ai/AGENT.md)
+- [docs/ai/PRD.md](docs/ai/PRD.md)
+- [docs/ai/IMPLEMENTATION_PLAN.md](docs/ai/IMPLEMENTATION_PLAN.md)
+
+Current execution roadmap:
+
+- [plan.md](plan.md)
+
+## Repository Layout
+
+```text
+docs/
+  ai/                    AI control and implementation guidance docs
+  project_design.md      Scenario source of truth
+src/pj_ag4/              Simulation package
+quant/                   Benchmark and sensitivity tooling
+scripts/                 Direct run helpers
+tests/                   Test suite
+plan.md                  Current repository roadmap
+progress.txt             Working log
+lessons.md               Anti-regression notes
+```
+
+## Deliverables
 
 - `simulation_results.csv`
-- `strategy_analysis.pdf` or an equivalent report section
+- `strategy_analysis.pdf`
 
 ## Run
 
@@ -44,10 +76,39 @@ pj-ag4-run \
   --output-dir outputs/llm_run
 ```
 
-The repository does not hardcode API secrets. Set the key before running:
+You can also place runtime settings in a local `.env` file. Copy `.env.example` and fill in your values:
+
+```bash
+cp .env.example .env
+```
+
+Example:
+
+```env
+PJ_AG4_OPENAI_API_KEY=your-api-key-here
+PJ_AG4_OPENAI_BASE_URL=http://127.0.0.1:8045/v1
+PJ_AG4_OPENAI_MODEL=gemini-3-flash
+```
+
+The project will automatically load `.env` before building the simulation config. It reads:
+
+- `PJ_AG4_OPENAI_API_KEY`
+- `PJ_AG4_OPENAI_BASE_URL`
+- `PJ_AG4_OPENAI_MODEL`
+- `OPENAI_API_KEY` as a fallback for the API key only
+
+Priority order:
+
+1. CLI arguments such as `--llm-api-key`
+2. Environment variables or values loaded from `.env`
+3. Built-in defaults in code
+
+If you prefer not to use `.env`, you can still export variables manually:
 
 ```bash
 export PJ_AG4_OPENAI_API_KEY="your-key-here"
+export PJ_AG4_OPENAI_BASE_URL="http://127.0.0.1:8045/v1"
+export PJ_AG4_OPENAI_MODEL="gemini-3-flash"
 ```
 
 Artifacts:
@@ -55,7 +116,13 @@ Artifacts:
 - `outputs/default_run/simulation_results.csv`
 - `outputs/default_run/strategy_analysis.pdf`
 
-Tests:
+## Quant Toolkit
+
+The `quant/` directory contains repeated-run benchmark and sensitivity helpers. See [quant/README.md](quant/README.md) for usage.
+
+## Tests
+
+Run the test suite with:
 
 ```bash
 pytest
@@ -63,4 +130,4 @@ pytest
 
 ## Status
 
-Repository initialized with formal design docs, a runnable Python simulation skeleton, switchable heuristic and LLM agent modes, CSV export, chart generation, and tests.
+The repository currently has a runnable simulation core, switchable heuristic and LLM agent modes, CSV export, chart generation, quant tooling, and passing tests.

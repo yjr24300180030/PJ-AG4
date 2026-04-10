@@ -115,7 +115,14 @@ def test_run_simulation_with_llm_mode_uses_openai_compatible_client(monkeypatch,
     assert all(row.forecast_demand == 210 for row in result.rows)
 
 
-def test_llm_mode_requires_api_key(tmp_path) -> None:
+def test_llm_mode_requires_api_key(monkeypatch, tmp_path) -> None:
+    from pj_ag4 import config as config_module
+
+    monkeypatch.setattr(config_module, "_load_runtime_env", lambda: None)
+    monkeypatch.delenv("PJ_AG4_OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("PJ_AG4_OPENAI_BASE_URL", raising=False)
+    monkeypatch.delenv("PJ_AG4_OPENAI_MODEL", raising=False)
     config = default_simulation_config(
         seed=3,
         rounds=2,

@@ -3,17 +3,17 @@
 ## Data Model
 
 - `SimulationConfig`: seed, round count, demand parameters, reputation parameters, cost parameters, action grids.
-- `AgentState`: inventory, cash, reputation, last price, last quantity, cumulative payoff.
-- `RoundRecord`: one long-form record per agent per round.
+- `AgentState`: inventory, reputation, last price, last profit, shortage state, and cumulative payoff.
+- `SettlementRow`: one long-form record per agent per round.
 - `SimulationResult`: records plus summary statistics and artifact paths.
 
 ## Tables and Columns
 
-### RoundRecord
+### SettlementRow
 
 - `seed`
 - `round`
-- `agent_id`
+- `agent_name`
 - `agent_role`
 - `demand_true`
 - `demand_obs`
@@ -30,10 +30,8 @@
 ### AgentState
 
 - `inventory`
-- `cash`
 - `reputation`
 - `last_price`
-- `last_quantity`
 - `last_profit`
 
 ## Relationships
@@ -49,11 +47,11 @@
 
 ## API Contracts
 
-- `Agent.act(observation) -> Action`
-- `Environment.step(actions) -> RoundRecord[]`
+- `Agent.decide(observation) -> AgentAction`
+- `MarketEnvironment.step(actions) -> SettlementRow[]`
 - `run_simulation(config) -> SimulationResult`
-- `export_csv(records, path) -> None`
-- `plot_results(records, path) -> list[path]`
+- `write_rows_to_csv(records, path) -> None`
+- `create_summary_figure(records, path) -> None`
 
 ## Validation and Error Handling
 

@@ -4,16 +4,16 @@ This project is CLI-first. "Screens" below refer to commands, outputs, and repor
 
 ## Screen Inventory
 
-- `python -m src.simulation run`: runs a full simulation and writes `simulation_results.csv`.
-- `python -m src.simulation summarize`: prints cumulative payoff, win/loss summary, and key metrics.
-- `python -m src.simulation plot`: generates charts for payoff, reputation, and demand trajectories.
-- `reports/strategy_analysis.pdf`: final report artifact or report chapter output.
+- `pj-ag4-run --rounds 30 --output-dir outputs/default_run`: runs a full simulation and writes `simulation_results.csv`.
+- `python3 scripts/run_simulation.py --rounds 30 --output-dir outputs/default_run`: script entrypoint for the same flow.
+- `quant/run_benchmarks.py` and `quant/run_sensitivity.py`: research-oriented benchmark and sensitivity entrypoints.
+- `outputs/<run_name>/strategy_analysis.pdf`: generated summary artifact for a single run.
 
 ## Route Map
 
-- `run` -> build config -> initialize agents and environment -> simulate rounds -> export CSV -> export plots.
-- `summarize` -> load CSV -> compute agent-level metrics -> print table.
-- `plot` -> load CSV -> create charts -> save PNG/PDF figures.
+- `pj-ag4-run` -> build config -> initialize runtime -> simulate rounds -> export CSV -> export PDF figure.
+- `scripts/run_simulation.py` -> same as CLI, but easier to call directly from the repo.
+- `quant/*` -> run repeated experiments -> aggregate metrics -> write Markdown or CSV summaries.
 
 ## Core Flows
 

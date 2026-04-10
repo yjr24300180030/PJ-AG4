@@ -4,6 +4,18 @@ from dataclasses import dataclass, field
 import os
 from pathlib import Path
 
+from dotenv import find_dotenv, load_dotenv
+
+
+def _load_runtime_env() -> None:
+    dotenv_path = find_dotenv(usecwd=True)
+    if dotenv_path:
+        load_dotenv(dotenv_path=dotenv_path, override=False)
+        return
+    repo_root_env = Path(__file__).resolve().parents[2] / ".env"
+    if repo_root_env.exists():
+        load_dotenv(dotenv_path=repo_root_env, override=False)
+
 
 @dataclass(frozen=True)
 class MarketConfig:
@@ -88,6 +100,7 @@ def default_simulation_config(
     llm_api_key: str | None = None,
     llm_model: str | None = None,
 ) -> SimulationConfig:
+    _load_runtime_env()
     agents = (
         AgentConfig(
             name="Hyperscaler",

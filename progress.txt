@@ -5,13 +5,16 @@ Done:
 - Python package skeleton, baseline agents, environment, CSV export, and plotting are implemented.
 - `pytest` passes and the CLI smoke run generates output artifacts.
 - OpenAI-compatible LLM agent mode is implemented behind a CLI switch with heuristic fallback on malformed outputs.
-- Architecture refactor blueprint was added in `architecture_refactor.md`.
+- Architecture refactor blueprint was added in `docs/ai/architecture_refactor.md`.
 - The simulation now has an explicit runtime path with `providers/`, `data/observation`, `strategy_registry`, and `core/runtime`.
 - Agent decisions now run through a staged pipeline with `Forecaster`, `Pricer`, `Allocator`, and `RiskGate` responsibilities.
 - `quant/` now consumes the shared simulation entrypoint instead of monkey-patching core agent builders.
 - The refactored heuristic path, quant path, and 1-round LLM smoke path all run successfully.
 - Agent personality is now expressed through stage-style combinations in the decision chain, not only through top-level role names.
 - Styled heuristic and styled LLM smoke runs complete successfully.
+- Quantity risk control now targets expected captured demand share instead of the full market forecast, which reduces chronic overstock without changing settlement logic.
+- The heuristic forecaster now anchors round-0 demand to the current market observation when no history exists, removing the low-forecast initialization artifact.
+- A recalibrated heuristic 10-round run reaches 0.994 fill rate with much lower terminal inventory, and the updated LLM smoke path still completes successfully with transfer activity.
 
 In Progress:
 - None.
@@ -20,6 +23,7 @@ Next:
 - Expand the report artifact beyond the single summary figure and add richer strategy commentary.
 - Consider splitting `agents.py` further now that provider, observation, runtime, and style logic are isolated conceptually.
 - Add more direct tests around strategy registration and stage-level behavior.
+- Re-run a full multi-round LLM simulation in the recalibrated regime once the local endpoint is responsive enough for longer jobs.
 
 Known Bugs:
-- None confirmed in the baseline heuristic path.
+- Long multi-round LLM runs can still stall on the local OpenAI-compatible endpoint even though 1-round smoke runs complete.

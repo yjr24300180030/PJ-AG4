@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import argparse
 from dataclasses import dataclass
 from pathlib import Path
-import argparse
 import sys
 from typing import Sequence
 
@@ -33,12 +33,42 @@ class FullQuantResult:
     full_report: Path
 
 
+def _benchmark_lines(aggregates) -> list[str]:
+    if not aggregates:
+        return ["- No benchmark rows found."]
+    ordered = sorted(aggregates, key=lambda item: item.market_metrics.mean_total_profit, reverse=True)
+    lines = ["", "### Benchmark Ranking", ""]
+    for index, item in enumerate(ordered, start=1):
+        default_rate = 0.0
+        if item.agent_metrics:
+            default_rate = sum(metric.mean_default_events for metric in item.agent_metrics) / len(item.agent_metrics)
+        lines.append(
+            f"- {index}. {strategy_title(item.strategy)}: mean market profit {item.market_metrics.mean_total_profit:.3f}, mean default events {default_rate:.3f}"
+        )
+    return lines
+
+
+def _sensitivity_lines(summary_rows) -> list[str]:
+    if not summary_rows:
+        return ["- No sensitivity rows found."]
+    ordered = sorted(summary_rows, key=lambda row: row.mean_total_profit, reverse=True)
+    best = ordered[0]
+    return [
+        "",
+        "### Sensitivity Best Point",
+        "",
+        f"- Best observed combination: {strategy_title(best.strategy)} with beta_R={best.beta_r:.3f}, sigma_obs={best.sigma_obs:.3f}",
+        f"- Mean total profit: {best.mean_total_profit:.3f}",
+        f"- Mean fulfillment ratio: {best.mean_fulfillment_ratio:.3f}",
+    ]
+
+
 def _write_full_report(
     *,
     output_path: Path,
     benchmark_report: Path,
     benchmark_figure: Path,
-    benchmark_strategy_lines: Sequence[str],
+    benchmark_lines: Sequence[str],
     sensitivity_report: Path,
     sensitivity_figure: Path,
     sensitivity_lines: Sequence[str],
@@ -50,7 +80,7 @@ def _write_full_report(
     lines.append("")
     lines.append(f"- Report: [{benchmark_report.name}]({benchmark_report.as_posix()})")
     lines.append(f"- Figure: [{benchmark_figure.name}]({benchmark_figure.as_posix()})")
-    lines.extend(benchmark_strategy_lines)
+    lines.extend(benchmark_lines)
     lines.append("")
     lines.append("## Sensitivity")
     lines.append("")
@@ -59,33 +89,6 @@ def _write_full_report(
     lines.extend(sensitivity_lines)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-def _benchmark_lines(strategy_metrics) -> list[str]:
-    if not strategy_metrics:
-        return ["- No benchmark rows found."]
-    ordered = sorted(strategy_metrics, key=lambda row: row.mean_final_cum_profit, reverse=True)
-    lines = ["", "### Benchmark Ranking", ""]
-    for index, row in enumerate(ordered, start=1):
-        lines.append(
-            f"- {index}. {strategy_title(row.strategy)}: mean final cumulative profit {row.mean_final_cum_profit:.3f}, mean default rate {row.mean_default_rate:.3f}"
-        )
-    return lines
-
-
-def _sensitivity_lines(summary_rows) -> list[str]:
-    if not summary_rows:
-        return ["- No sensitivity rows found."]
-    ordered = sorted(summary_rows, key=lambda row: row.mean_final_cum_profit, reverse=True)
-    best = ordered[0]
-    return [
-        "",
-        "### Sensitivity Best Point",
-        "",
-        f"- Best observed combination: {strategy_title(best.strategy)} with beta_R={best.beta_r:.3f}, sigma_obs={best.sigma_obs:.3f}",
-        f"- Mean final cumulative profit: {best.mean_final_cum_profit:.3f}",
-        f"- Mean default rate: {best.mean_default_rate:.3f}",
-    ]
 
 
 def run_full_quant(
@@ -106,7 +109,7 @@ def run_full_quant(
 ) -> FullQuantResult:
     output_root = Path(output_root)
     benchmark_result = run_benchmark_suite(
-        strategies=benchmark_strategies or DEFAULT_STRATEGIES,
+        strategies=benchmark_strategies or ("heuristic", "rule_price_cutter", "rule_inventory_guard"),
         seeds=benchmark_seeds,
         rounds=benchmark_rounds,
         output_root=output_root / "benchmarks",
@@ -128,12 +131,13 @@ def run_full_quant(
         llm_model=llm_model,
         timeout_seconds=timeout_seconds,
     )
+
     full_report = output_root / "full_quant_report.md"
     _write_full_report(
         output_path=full_report,
         benchmark_report=benchmark_result.report_path,
         benchmark_figure=benchmark_result.figure_path,
-        benchmark_strategy_lines=_benchmark_lines(benchmark_result.strategy_metrics),
+        benchmark_lines=_benchmark_lines(benchmark_result.aggregates),
         sensitivity_report=sensitivity_result.report_path,
         sensitivity_figure=sensitivity_result.figure_path,
         sensitivity_lines=_sensitivity_lines(sensitivity_result.summary_rows),
@@ -152,7 +156,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-root", type=Path, default=Path("quant/outputs/full_quant"))
     parser.add_argument("--benchmark-rounds", type=int, default=10)
     parser.add_argument("--benchmark-seeds", type=int, nargs="+", default=[7, 11])
-    parser.add_argument("--benchmark-strategies", nargs="+", default=list(DEFAULT_STRATEGIES), choices=list(DEFAULT_STRATEGIES))
+    parser.add_argument(
+        "--benchmark-strategies",
+        nargs="+",
+        default=["heuristic", "rule_price_cutter", "rule_inventory_guard"],
+        choices=list(DEFAULT_STRATEGIES),
+    )
     parser.add_argument("--sensitivity-rounds", type=int, default=10)
     parser.add_argument("--sensitivity-seeds", type=int, nargs="+", default=[11, 23])
     parser.add_argument("--sensitivity-strategies", nargs="+", default=["heuristic"], choices=list(DEFAULT_STRATEGIES))

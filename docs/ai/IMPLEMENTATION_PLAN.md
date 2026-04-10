@@ -11,7 +11,7 @@
 
 ### Step 1.1
 - Objective: Freeze the document stack and project rules.
-- Files: `PRD.md`, `APP_FLOW.md`, `TECH_STACK.md`, `FRONTEND_GUIDELINES.md`, `BACKEND_STRUCTURE.md`, `IMPLEMENTATION_PLAN.md`, `AGENT_CONTEXT.md`, `progress.txt`, `lessons.md`.
+- Files: `docs/ai/PRD.md`, `docs/ai/APP_FLOW.md`, `docs/ai/TECH_STACK.md`, `docs/ai/FRONTEND_GUIDELINES.md`, `docs/ai/BACKEND_STRUCTURE.md`, `docs/ai/IMPLEMENTATION_PLAN.md`, `docs/ai/AGENT.md`, `progress.txt`, `lessons.md`.
 - Tests: Manual review against `docs/project_design.md`.
 - Done when: every document contains concrete, implementation-guiding content.
 

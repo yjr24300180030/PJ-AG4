@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
-from pathlib import Path
 import argparse
+from dataclasses import dataclass
+from pathlib import Path
 import math
 import sys
 from statistics import mean, pstdev
@@ -26,12 +26,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from quant.run_benchmarks import (  # noqa: E402
-    _agent_metric_row,
-    _group_rows_by_agent,
-    _write_csv,
-    run_case,
-)
+from quant.common import RunArtifact, StrategyProfile, run_profile  # noqa: E402
+from quant.reporting import write_dataclass_csv  # noqa: E402
 from quant.strategies import DEFAULT_STRATEGIES, strategy_title  # noqa: E402
 
 
@@ -41,16 +37,12 @@ class SensitivityGridRow:
     seed: int
     beta_r: float
     sigma_obs: float
-    mean_final_cum_profit: float
-    mean_default_rate: float
+    total_profit: float
+    fulfillment_ratio: float
     mean_sharpe_like: float
     mean_max_drawdown: float
     mean_avg_reputation: float
     mean_total_shortage: float
-
-    def to_row(self) -> dict[str, str]:
-        data = asdict(self)
-        return {key: f"{value:.6f}" if isinstance(value, float) else str(value) for key, value in data.items()}
 
 
 @dataclass(frozen=True)
@@ -59,21 +51,18 @@ class SensitivitySummaryRow:
     beta_r: float
     sigma_obs: float
     runs: int
-    mean_final_cum_profit: float
-    std_final_cum_profit: float
-    mean_default_rate: float
+    mean_total_profit: float
+    std_total_profit: float
+    mean_fulfillment_ratio: float
     mean_sharpe_like: float
     mean_max_drawdown: float
     mean_avg_reputation: float
     mean_total_shortage: float
 
-    def to_row(self) -> dict[str, str]:
-        data = asdict(self)
-        return {key: f"{value:.6f}" if isinstance(value, float) else str(value) for key, value in data.items()}
-
 
 @dataclass(frozen=True)
 class SensitivityResult:
+    artifacts: list[RunArtifact]
     grid_rows: list[SensitivityGridRow]
     summary_rows: list[SensitivitySummaryRow]
     grid_csv: Path
@@ -82,22 +71,38 @@ class SensitivityResult:
     figure_path: Path
 
 
+def _artifact_to_grid_row(artifact: RunArtifact, *, beta_r: float, sigma_obs: float) -> SensitivityGridRow:
+    agent_metrics = artifact.summary.agent_metrics
+    return SensitivityGridRow(
+        strategy=artifact.strategy,
+        seed=artifact.seed,
+        beta_r=beta_r,
+        sigma_obs=sigma_obs,
+        total_profit=artifact.summary.market.total_profit,
+        fulfillment_ratio=artifact.summary.market.fulfillment_ratio,
+        mean_sharpe_like=mean(metric.sharpe_like for metric in agent_metrics) if agent_metrics else 0.0,
+        mean_max_drawdown=mean(metric.max_drawdown for metric in agent_metrics) if agent_metrics else 0.0,
+        mean_avg_reputation=mean(metric.avg_reputation for metric in agent_metrics) if agent_metrics else 0.0,
+        mean_total_shortage=mean(metric.total_shortage for metric in agent_metrics) if agent_metrics else 0.0,
+    )
+
+
 def _aggregate_grid_rows(grid_rows: Sequence[SensitivityGridRow]) -> list[SensitivitySummaryRow]:
     grouped: dict[tuple[str, float, float], list[SensitivityGridRow]] = {}
     for row in grid_rows:
         grouped.setdefault((row.strategy, row.beta_r, row.sigma_obs), []).append(row)
     summary: list[SensitivitySummaryRow] = []
     for (strategy, beta_r, sigma_obs), rows in grouped.items():
-        profits = [row.mean_final_cum_profit for row in rows]
+        profits = [row.total_profit for row in rows]
         summary.append(
             SensitivitySummaryRow(
                 strategy=strategy,
                 beta_r=beta_r,
                 sigma_obs=sigma_obs,
                 runs=len(rows),
-                mean_final_cum_profit=mean(profits),
-                std_final_cum_profit=pstdev(profits) if len(profits) > 1 else 0.0,
-                mean_default_rate=mean(row.mean_default_rate for row in rows),
+                mean_total_profit=mean(profits),
+                std_total_profit=pstdev(profits) if len(profits) > 1 else 0.0,
+                mean_fulfillment_ratio=mean(row.fulfillment_ratio for row in rows),
                 mean_sharpe_like=mean(row.mean_sharpe_like for row in rows),
                 mean_max_drawdown=mean(row.mean_max_drawdown for row in rows),
                 mean_avg_reputation=mean(row.mean_avg_reputation for row in rows),
@@ -117,14 +122,14 @@ def _plot_heatmap(summary_rows: Sequence[SensitivitySummaryRow], output_path: Pa
     fig, axes = plt.subplots(1, len(strategies), figsize=(5 * len(strategies), 4.5), squeeze=False)
     for axis, strategy in zip(axes[0], strategies, strict=True):
         lookup = {
-            (row.strategy, row.beta_r, row.sigma_obs): row.mean_final_cum_profit
+            (row.strategy, row.beta_r, row.sigma_obs): row.mean_total_profit
             for row in summary_rows
         }
         matrix = [[math.nan for _ in beta_values] for _ in sigma_values]
         for y_index, sigma in enumerate(sigma_values):
             for x_index, beta in enumerate(beta_values):
                 matrix[y_index][x_index] = lookup.get((strategy, beta, sigma), math.nan)
-        im = axis.imshow(matrix, aspect="auto", origin="lower", cmap="viridis")
+        image = axis.imshow(matrix, aspect="auto", origin="lower", cmap="viridis")
         axis.set_xticks(range(len(beta_values)))
         axis.set_xticklabels([f"{value:.2f}" for value in beta_values])
         axis.set_yticks(range(len(sigma_values)))
@@ -132,25 +137,24 @@ def _plot_heatmap(summary_rows: Sequence[SensitivitySummaryRow], output_path: Pa
         axis.set_xlabel("beta_R")
         axis.set_ylabel("sigma_obs")
         axis.set_title(strategy_title(strategy))
-        fig.colorbar(im, ax=axis, shrink=0.8)
+        fig.colorbar(image, ax=axis, shrink=0.8)
     fig.tight_layout()
     fig.savefig(output_path, dpi=180)
     plt.close(fig)
 
 
-def _write_report(path: Path, grid_rows: Sequence[SensitivityGridRow], summary_rows: Sequence[SensitivitySummaryRow], figure_path: Path) -> None:
+def _write_report(path: Path, summary_rows: Sequence[SensitivitySummaryRow], figure_path: Path) -> None:
     lines: list[str] = []
     lines.append("# PJ-AG4 Sensitivity Report")
     lines.append("")
-    lines.append(f"- Grid rows: {len(grid_rows)}")
     lines.append(f"- Summary rows: {len(summary_rows)}")
     lines.append(f"- Figure: [{figure_path.name}]({figure_path.as_posix()})")
     lines.append("")
-    lines.append("| Strategy | beta_R | sigma_obs | Mean Final Cum Profit | Mean Default Rate | Mean Sharpe-like |")
-    lines.append("| --- | ---: | ---: | ---: | ---: | ---: |")
+    lines.append("| Strategy | beta_R | sigma_obs | Mean Total Profit | Mean Fulfillment | Mean Sharpe-like | Mean Max Drawdown |")
+    lines.append("| --- | ---: | ---: | ---: | ---: | ---: | ---: |")
     for row in summary_rows:
         lines.append(
-            f"| {strategy_title(row.strategy)} | {row.beta_r:.3f} | {row.sigma_obs:.3f} | {row.mean_final_cum_profit:.3f} | {row.mean_default_rate:.3f} | {row.mean_sharpe_like:.3f} |"
+            f"| {strategy_title(row.strategy)} | {row.beta_r:.3f} | {row.sigma_obs:.3f} | {row.mean_total_profit:.3f} | {row.mean_fulfillment_ratio:.3f} | {row.mean_sharpe_like:.3f} | {row.mean_max_drawdown:.3f} |"
         )
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -171,44 +175,30 @@ def run_sensitivity_suite(
 ) -> SensitivityResult:
     selected_strategies = tuple(strategies or ("heuristic",))
     output_root = Path(output_root)
+    artifacts: list[RunArtifact] = []
     grid_rows: list[SensitivityGridRow] = []
     for strategy in selected_strategies:
+        profile = StrategyProfile(name=strategy, kind=strategy)
         for beta_r in beta_r_values:
             for sigma_obs in sigma_obs_values:
                 for seed in seeds:
-                    case = run_case(
-                        strategy_name=strategy,
+                    artifact = run_profile(
+                        profile,
                         seed=seed,
                         rounds=rounds,
                         output_root=output_root / "runs",
+                        generate_figure=False,
                         llm_base_url=llm_base_url,
                         llm_api_key=llm_api_key,
                         llm_model=llm_model,
-                        timeout_seconds=timeout_seconds,
-                        generate_figure=False,
+                        llm_timeout_seconds=timeout_seconds,
                         market_overrides={
                             "reputation_weight": beta_r,
                             "observation_noise_sigma": sigma_obs,
                         },
                     )
-                    agent_metrics = [
-                        _agent_metric_row(strategy, seed, agent_rows)
-                        for agent_rows in _group_rows_by_agent(case.rows).values()
-                    ]
-                    grid_rows.append(
-                        SensitivityGridRow(
-                            strategy=strategy,
-                            seed=seed,
-                            beta_r=beta_r,
-                            sigma_obs=sigma_obs,
-                            mean_final_cum_profit=mean(metric.final_cum_profit for metric in agent_metrics),
-                            mean_default_rate=mean(metric.default_rate for metric in agent_metrics),
-                            mean_sharpe_like=mean(metric.sharpe_like for metric in agent_metrics),
-                            mean_max_drawdown=mean(metric.max_drawdown for metric in agent_metrics),
-                            mean_avg_reputation=mean(metric.avg_reputation for metric in agent_metrics),
-                            mean_total_shortage=mean(metric.total_shortage for metric in agent_metrics),
-                        )
-                    )
+                    artifacts.append(artifact)
+                    grid_rows.append(_artifact_to_grid_row(artifact, beta_r=beta_r, sigma_obs=sigma_obs))
 
     summary_rows = _aggregate_grid_rows(grid_rows)
     reports_dir = output_root / "reports"
@@ -216,11 +206,12 @@ def run_sensitivity_suite(
     summary_csv = reports_dir / "sensitivity_summary.csv"
     report_path = reports_dir / "sensitivity_report.md"
     figure_path = reports_dir / "sensitivity_heatmap.png"
-    _write_csv(grid_csv, [row.to_row() for row in grid_rows])
-    _write_csv(summary_csv, [row.to_row() for row in summary_rows])
+    write_dataclass_csv(grid_csv, grid_rows)
+    write_dataclass_csv(summary_csv, summary_rows)
     _plot_heatmap(summary_rows, figure_path)
-    _write_report(report_path, grid_rows, summary_rows, figure_path)
+    _write_report(report_path, summary_rows, figure_path)
     return SensitivityResult(
+        artifacts=artifacts,
         grid_rows=grid_rows,
         summary_rows=summary_rows,
         grid_csv=grid_csv,

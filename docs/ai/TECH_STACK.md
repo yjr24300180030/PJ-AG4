@@ -8,12 +8,8 @@
 
 ## Dependencies (Pinned Versions)
 
-- `numpy`
-- `pandas`
 - `matplotlib`
-- `pydantic`
 - `pytest`
-- `rich`
 - `openai` for OpenAI-compatible LLM-backed agent adapters
 
 ## External Services
@@ -24,7 +20,7 @@
 ## Tooling and Quality Gates
 
 - `pytest` for unit tests.
-- CLI smoke test for one full simulation run.
+- CLI smoke test for one full simulation run via `pj-ag4-run`.
 - CSV schema validation after each run.
 - Plot generation check for the required figure artifact.
 

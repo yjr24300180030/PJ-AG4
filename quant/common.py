@@ -145,19 +145,21 @@ def run_profile(
     llm_api_key: str | None = None,
     llm_model: str | None = None,
     llm_timeout_seconds: float = 30.0,
+    market_overrides: dict[str, float] | None = None,
 ) -> RunArtifact:
     ensure_quant_strategies_registered()
     base_dir = Path(output_root or (REPO_ROOT / "quant" / "outputs"))
     output_dir = base_dir / profile.name / f"seed_{seed}"
-    config = build_simulation_config(
+    config = build_strategy_config(
+        strategy_name=profile.kind,
         seed=seed,
         rounds=rounds,
         output_dir=output_dir,
-        agent_mode=profile.kind,
         llm_base_url=llm_base_url,
         llm_api_key=llm_api_key,
         llm_model=llm_model,
         llm_timeout_seconds=llm_timeout_seconds,
+        market_overrides=market_overrides,
     )
     result = run_simulation(
         config,
@@ -247,23 +249,39 @@ def run_sensitivity_scan(plan: SensitivityPlan) -> list[RunArtifact]:
     return artifacts
 
 
-def summarize_benchmark_artifacts(artifacts: list[RunArtifact]) -> AggregateBenchmark:
+def summarize_benchmark_artifacts(artifacts: list[RunArtifact]) -> tuple[AggregateBenchmark, ...]:
     summaries = [artifact.summary for artifact in artifacts]
     return aggregate_run_summaries(summaries)
 
 
-def summarize_sensitivity_artifacts(artifacts: list[RunArtifact]) -> list[AggregateSensitivityPoint]:
-    points = [
-        SensitivityPoint(
-            strategy=artifact.strategy,
-            seed=artifact.seed,
-            parameter_name=artifact.parameter_name or "",
-            parameter_value=artifact.parameter_value or 0.0,
-            agent_metrics=artifact.summary.agents,
-            market_metrics=artifact.summary.market,
+def sensitivity_points_from_runs(artifacts: list[RunArtifact]) -> list[SensitivityPoint]:
+    points: list[SensitivityPoint] = []
+    for artifact in artifacts:
+        agent_metrics = artifact.summary.agent_metrics
+        mean_sharpe_like = 0.0
+        mean_max_drawdown = 0.0
+        if agent_metrics:
+            mean_sharpe_like = sum(metric.sharpe_like for metric in agent_metrics) / len(agent_metrics)
+            mean_max_drawdown = sum(metric.max_drawdown for metric in agent_metrics) / len(agent_metrics)
+        points.append(
+            SensitivityPoint(
+                strategy=artifact.strategy,
+                parameter=artifact.parameter_name or "",
+                value=artifact.parameter_value or 0.0,
+                runs=1,
+                mean_total_profit=artifact.summary.market.total_profit,
+                std_total_profit=0.0,
+                mean_fulfillment_ratio=artifact.summary.market.fulfillment_ratio,
+                std_fulfillment_ratio=0.0,
+                mean_sharpe_like=mean_sharpe_like,
+                mean_max_drawdown=mean_max_drawdown,
+            )
         )
-        for artifact in artifacts
-    ]
+    return points
+
+
+def summarize_sensitivity_artifacts(artifacts: list[RunArtifact]) -> tuple[AggregateSensitivityPoint, ...]:
+    points = sensitivity_points_from_runs(artifacts)
     return aggregate_sensitivity_points(points)
 
 
