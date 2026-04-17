@@ -142,23 +142,37 @@ Then open:
 
 - `outputs/dev_dashboard/strategy_dashboard.html`
 
-If you prefer a localhost web surface instead of opening the exported file directly, run:
+If you prefer a localhost web surface instead of opening the exported file directly, use the service startup steps below.
+
+## Start The Local Dashboard Service
+
+Recommended startup flow:
 
 ```bash
-python3 -m pj_ag4.web --host 127.0.0.1 --port 8765
+cd /Users/yijunrong/Desktop/PJ-AG4
+python3 -m pj_ag4.web --host 127.0.0.1 --port 8766
 ```
 
-or, after installing the package entrypoints:
+If you installed the project entrypoints, the equivalent command is:
 
 ```bash
-pj-ag4-web --host 127.0.0.1 --port 8765
+pj-ag4-web --host 127.0.0.1 --port 8766
 ```
 
-Then open:
+For the LLM-backed runtime, make sure the local gateway is available at `http://127.0.0.1:8045/v1`. The localhost dashboard service will use:
 
-- `http://127.0.0.1:8765/` for the localhost dashboard page
-- `http://127.0.0.1:8765/dashboard` as an alias of the same dashboard page
-- `http://127.0.0.1:8765/api/payload` for the JSON payload
+- base URL: `http://127.0.0.1:8045/v1`
+- model: `gemini-3-flash`
+- API key: `local-dev-key`
+
+After the service starts, open:
+
+- `http://127.0.0.1:8766/` for the streaming dashboard UI
+- `http://127.0.0.1:8766/?agent_mode=llm` to boot directly into LLM mode
+- `http://127.0.0.1:8766/api/payload` for a one-shot JSON payload
+- `http://127.0.0.1:8766/api/stream` for the event stream API
+
+The service keeps running in the foreground. Stop it with `Ctrl+C`.
 
 ## Quant Toolkit
 

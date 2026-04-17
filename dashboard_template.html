@@ -1491,6 +1491,14 @@
         }
         finishRuntimeIfIdle();
       });
+      source.addEventListener("stream_error", (event) => {
+        if (runtime.eventSource === source) {
+          runtime.eventSource.close();
+          runtime.eventSource = null;
+        }
+        controls.controlStream.innerHTML = '<div class="stream-line"><span class="stream-prefix">[ERR]</span><span class="stream-text">' + escapeHtml(JSON.parse(event.data).error || "stream error") + '</span></div>';
+        setRuntimeStatus("error", "status-danger");
+      });
       source.onerror = () => {
         if (runtime.eventSource === source) {
           runtime.eventSource.close();
@@ -1518,6 +1526,7 @@
       }
 
       setRuntimeStatus("boot", "status-blue");
+      clearRuntimeView();
       const response = await fetch("/api/payload?" + runtimeQuery(options, { limit_rounds: "1" }), {
         headers: { Accept: "application/json" },
       });
@@ -1538,6 +1547,34 @@
 
     function currentRound() {
       return data.roundsData[state.roundIndex] || data.roundsData[0];
+    }
+
+    function clearRuntimeView() {
+      controls.marketReadout.textContent = "> awaiting runtime stream";
+      controls.agentReadout.textContent = "> awaiting runtime stream";
+      controls.marketChart.innerHTML = "";
+      controls.agentChart.innerHTML = "";
+      controls.controlStream.innerHTML = '<div class="stream-line"><span class="stream-prefix">[CTRL]</span><span class="stream-text">&gt; booting runtime stream...</span></div>';
+      controls.eventList.innerHTML = '<div class="empty-log">&gt; waiting for highest-impact moments...</div>';
+      controls.roundAgentLog.innerHTML = '<div class="empty-log">&gt; waiting for agent actions...</div>';
+      document.getElementById("focus-round-label").textContent = "-- / inspection";
+      document.getElementById("focus-round-copy").textContent = "Waiting for the next runtime batch.";
+      document.getElementById("detail-regime").textContent = "Booting";
+      document.getElementById("detail-spread").textContent = "--";
+      document.getElementById("detail-gap").textContent = "--";
+      document.getElementById("detail-shock").textContent = "--";
+      document.getElementById("detail-transfer").textContent = "--";
+      document.getElementById("detail-fulfillment").textContent = "--";
+      document.getElementById("detail-fulfillment-bar").style.width = "0%";
+      document.getElementById("detail-regime-tag").className = "status-tag status-blue";
+      document.getElementById("detail-regime-tag").textContent = "Boot";
+      document.getElementById("footer-node").textContent = "NODE: --";
+      document.getElementById("footer-total").textContent = "TOTAL: 0/" + runtime.targetRounds;
+      document.getElementById("footer-status").textContent = "STATUS: BOOT";
+      document.getElementById("footer-agent").textContent = "AGENT: " + String(state.agent).toUpperCase();
+      document.getElementById("footer-metric").textContent = "METRIC: " + String(state.metric).toUpperCase();
+      controls.footerBar.style.background = "#3e8ad6";
+      controls.footerBar.style.color = "#fff";
     }
 
     function projectedDemandSeries() {
@@ -1636,6 +1673,37 @@
         const value = max - (max - min) * ratio;
         const y = padding + ((height - padding * 2) * ratio);
         return '<text x="' + (padding - 8) + '" y="' + (y + 3).toFixed(2) + '" fill="rgba(42,157,98,0.9)" font-family="Fira Code, monospace" font-size="10" text-anchor="end">' + formatNumber(value, digits) + "</text>";
+      }).join("");
+    }
+
+    function buildShockBands(rounds, points, width, height, padding) {
+      if (!toggles.shocks || !points.length) {
+        return "";
+      }
+      const step = xStepFor(points.length, width, padding);
+      const regions = [];
+      let start = null;
+      rounds.forEach((round, index) => {
+        const active = Math.abs(round.shockComponent) >= 0.5;
+        if (active && start === null) {
+          start = index;
+        }
+        if (!active && start !== null) {
+          regions.push({ start, end: index - 1 });
+          start = null;
+        }
+      });
+      if (start !== null) {
+        regions.push({ start, end: rounds.length - 1 });
+      }
+      return regions.map((region) => {
+        const x1 = Math.max(padding, region.start === 0 ? padding : points[region.start].x - step / 2);
+        const x2 = Math.min(width - padding, region.end === points.length - 1 ? width - padding : points[region.end].x + step / 2);
+        const bandWidth = Math.max(2, x2 - x1);
+        return (
+          '<rect x="' + x1.toFixed(2) + '" y="' + padding + '" width="' + bandWidth.toFixed(2) + '" height="' + (height - padding * 2) + '" fill="rgba(61,220,132,0.08)" stroke="rgba(61,220,132,0.32)" stroke-dasharray="5 7"></rect>'
+          + '<text x="' + (x1 + 8).toFixed(2) + '" y="' + (padding + 14).toFixed(2) + '" fill="rgba(61,220,132,0.82)" font-family="Fira Code, monospace" font-size="10">shock regime</text>'
+        );
       }).join("");
     }
 
@@ -1889,15 +1957,11 @@
 
       controls.marketChart.setAttribute("viewBox", "0 0 " + width + " " + height);
       controls.marketChart.setAttribute("preserveAspectRatio", "none");
-
+      const shockBands = buildShockBands(data.roundsData, demandPoints, width, height, padding);
       const overlays = data.roundsData.map((round, index) => {
         if (!demandPoints[index]) return "";
         const x = demandPoints[index].x;
         let markup = "";
-        if (toggles.shocks && Math.abs(round.shockComponent) >= 0.5) {
-          markup += '<line x1="' + x.toFixed(2) + '" y1="' + (padding + 4) + '" x2="' + x.toFixed(2) + '" y2="' + (height - padding).toFixed(2) + '" stroke="#3ddc84" stroke-opacity="0.35" stroke-dasharray="3 7"></line>';
-          markup += '<rect x="' + (x - 4).toFixed(2) + '" y="' + (padding + 6) + '" width="8" height="8" fill="#3ddc84"></rect>';
-        }
         if (toggles.defaults && round.defaultCount > 0) {
           markup += '<rect x="' + (x - 4).toFixed(2) + '" y="' + (padding + 20) + '" width="8" height="8" fill="#c7347e"></rect>';
         }
@@ -1913,6 +1977,7 @@
       controls.marketChart.innerHTML =
         buildGrid(width, height, padding, Math.max(demand.length, 2), 5)
         + buildYAxis(range.min, range.max, height, padding)
+        + shockBands
         + overlays
         + '<path d="' + buildPath(demandPoints) + '" fill="none" stroke="#3ddc84" stroke-width="2"></path>'
         + '<path d="' + buildPath(salesPoints) + '" fill="none" stroke="#fff" stroke-width="1.7"></path>'

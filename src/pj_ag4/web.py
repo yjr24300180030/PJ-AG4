@@ -130,8 +130,9 @@ def _apply_runtime_controls(
     demand_bias: int,
     demand_floor: int,
     shock_magnitude: float,
+    shock_round: int,
 ) -> DemandSnapshot:
-    manual_shock = abs(shock_magnitude) * shock_scale
+    manual_shock = abs(shock_magnitude) * shock_scale if snapshot.round_index >= shock_round else 0.0
     adjusted_shock = snapshot.shock_component + manual_shock
     true_demand = int(
         round(
@@ -193,6 +194,7 @@ def iter_runtime_payloads(
             demand_bias=options.demand_bias,
             demand_floor=config.market.demand_floor,
             shock_magnitude=config.market.shock_magnitude,
+            shock_round=config.market.shock_round,
         )
         current_reputations = {name: state.reputation for name, state in env.states.items()}
         actions = {}
