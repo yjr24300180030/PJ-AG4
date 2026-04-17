@@ -21,6 +21,7 @@ dev = [
 
 [project.scripts]
 pj-ag4-run = "pj_ag4.cli:main"
+pj-ag4-web = "pj_ag4.web:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

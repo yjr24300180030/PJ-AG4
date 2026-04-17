@@ -28,6 +28,7 @@ AI-facing control documents are grouped under:
 Current execution roadmap:
 
 - [plan.md](plan.md)
+- [DESIGN.md](DESIGN.md)
 
 ## Repository Layout
 
@@ -48,6 +49,7 @@ lessons.md               Anti-regression notes
 
 - `simulation_results.csv`
 - `strategy_analysis.pdf`
+- `strategy_dashboard.html`
 
 ## Run
 
@@ -115,6 +117,48 @@ Artifacts:
 
 - `outputs/default_run/simulation_results.csv`
 - `outputs/default_run/strategy_analysis.pdf`
+- `outputs/default_run/strategy_dashboard.html`
+
+The HTML dashboard is the local sandbox surface for:
+
+- agent decision inspection
+- market trend monitoring
+- shock and anomaly review
+- future controls for interventions and quant overlays
+
+## Direct Layout Editing
+
+If you want to tweak the dashboard layout directly, edit the root template file:
+
+- [dashboard_template.html](/Users/yijunrong/Desktop/PJ-AG4/dashboard_template.html)
+
+The generator now prefers this file over the built-in template in Python. After editing it, regenerate the dashboard:
+
+```bash
+python3 -m pj_ag4.cli --rounds 30 --output-dir outputs/dev_dashboard
+```
+
+Then open:
+
+- `outputs/dev_dashboard/strategy_dashboard.html`
+
+If you prefer a localhost web surface instead of opening the exported file directly, run:
+
+```bash
+python3 -m pj_ag4.web --host 127.0.0.1 --port 8765
+```
+
+or, after installing the package entrypoints:
+
+```bash
+pj-ag4-web --host 127.0.0.1 --port 8765
+```
+
+Then open:
+
+- `http://127.0.0.1:8765/` for the localhost dashboard page
+- `http://127.0.0.1:8765/dashboard` as an alias of the same dashboard page
+- `http://127.0.0.1:8765/api/payload` for the JSON payload
 
 ## Quant Toolkit
 
@@ -130,4 +174,4 @@ pytest
 
 ## Status
 
-The repository currently has a runnable simulation core, switchable heuristic and LLM agent modes, CSV export, chart generation, quant tooling, and passing tests.
+The repository currently has a runnable simulation core, switchable heuristic and LLM agent modes, CSV export, PDF chart generation, an interactive HTML dashboard artifact, quant tooling, and passing tests.

@@ -13,6 +13,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", type=int, default=7, help="Random seed")
     parser.add_argument("--output-dir", type=Path, default=Path("outputs"), help="Directory for CSV and figures")
     parser.add_argument("--no-figure", action="store_true", help="Skip figure generation")
+    parser.add_argument("--no-dashboard", action="store_true", help="Skip interactive HTML dashboard generation")
     parser.add_argument("--agent-mode", choices=("heuristic", "llm"), default="heuristic", help="Policy backend for agent decisions")
     parser.add_argument("--llm-base-url", type=str, default=None, help="OpenAI-compatible base URL for LLM mode")
     parser.add_argument("--llm-api-key", type=str, default=None, help="API key for LLM mode")
@@ -31,10 +32,17 @@ def main(argv: list[str] | None = None) -> int:
         llm_api_key=args.llm_api_key,
         llm_model=args.llm_model,
     )
-    result = run_simulation(config, output_dir=args.output_dir, generate_figure=not args.no_figure)
+    result = run_simulation(
+        config,
+        output_dir=args.output_dir,
+        generate_figure=not args.no_figure,
+        generate_dashboard=not args.no_dashboard,
+    )
     print(f"CSV: {result.csv_path}")
     if result.figure_path:
         print(f"Figure: {result.figure_path}")
+    if result.dashboard_path:
+        print(f"Dashboard: {result.dashboard_path}")
     return 0
 
 

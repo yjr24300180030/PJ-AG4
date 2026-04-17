@@ -14,6 +14,9 @@ def test_run_simulation_writes_outputs(tmp_path) -> None:
     assert result.figure_path is not None
     assert result.figure_path.exists()
     assert result.figure_path.name == "strategy_analysis.pdf"
+    assert result.dashboard_path is not None
+    assert result.dashboard_path.exists()
+    assert result.dashboard_path.name == "strategy_dashboard.html"
 
     with result.csv_path.open(newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
