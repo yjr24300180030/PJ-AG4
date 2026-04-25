@@ -7,7 +7,7 @@ from .config import AgentConfig, LLMConfig
 from .contracts import AgentAction, MarketObservation
 from .providers import build_openai_client, query_json_completion
 from .strategy_registry import build_registered_agents, has_strategy, register_strategy
-from .utils import int_round_to_step, round_to_step, weighted_forecast
+from .utils import clamp, int_round_to_step, round_to_step, weighted_forecast
 
 _build_openai_client = build_openai_client
 
@@ -70,6 +70,39 @@ def _allocator_style_adjustment(style: str, observation: MarketObservation, fore
     return 0.0
 
 
+def _expected_capture_share(config: AgentConfig, observation: MarketObservation, planned_price: float) -> float:
+    peer_reputations = [value for name, value in observation.peer_reputations if name != config.name]
+    agent_count = max(1, len(peer_reputations) + 1)
+    base_share = 1.0 / agent_count
+    avg_peer_reputation = sum(peer_reputations) / len(peer_reputations) if peer_reputations else observation.own_reputation
+    reputation_edge = 0.45 * (observation.own_reputation - avg_peer_reputation)
+    price_edge = -0.18 * (planned_price - observation.market_avg_price)
+    style_bias = 0.0
+    if config.pricer_style == "share_grabber":
+        style_bias += 0.06
+    elif config.pricer_style == "premium_keeper":
+        style_bias -= 0.04
+    return clamp(base_share + reputation_edge + price_edge + style_bias, 0.12, 0.72)
+
+
+def _inventory_target_total(
+    config: AgentConfig,
+    observation: MarketObservation,
+    forecast: int,
+    planned_price: float,
+) -> float:
+    expected_share = _expected_capture_share(config, observation, planned_price)
+    expected_captured_demand = forecast * expected_share
+    shortage_buffer = min(observation.own_last_shortage, max(6.0, forecast * 0.12))
+    if config.risk_style == "growth_tolerant":
+        return max(18.0, expected_captured_demand * 1.18 + 10.0 + shortage_buffer)
+    if config.risk_style == "sla_guard":
+        return max(16.0, expected_captured_demand * 1.10 + 8.0 + 0.8 * shortage_buffer)
+    if config.risk_style == "inventory_guard":
+        return max(12.0, expected_captured_demand * 0.92 + 5.0 + 0.5 * shortage_buffer)
+    return max(15.0, expected_captured_demand + 6.0 + 0.6 * shortage_buffer)
+
+
 class RiskGateStage:
     def __init__(self, config: AgentConfig) -> None:
         self._config = config
@@ -97,6 +130,16 @@ class RiskGateStage:
             reviewed_quantity = min(reviewed_quantity, max(0.0, target_total - observation.own_inventory))
             if observation.market_volatility > 5.0:
                 reviewed_price = max(reviewed_price, observation.market_avg_price)
+        inventory_target_total = _inventory_target_total(
+            self._config,
+            observation,
+            reviewed_forecast,
+            reviewed_price,
+        )
+        reviewed_quantity = min(
+            reviewed_quantity,
+            max(0.0, inventory_target_total - observation.own_inventory),
+        )
         if fallback is not None and observation.own_reputation < 0.35:
             reviewed_price = max(reviewed_price, fallback.price)
         return AgentAction(
@@ -123,11 +166,14 @@ class HeuristicForecasterStage:
     def run(self, observation: MarketObservation, *, fallback: AgentAction | None = None) -> int:
         del fallback
         history = observation.observed_demand_history
-        base = weighted_forecast(history, short_window=3)
         trend = 0.0
+        if not history:
+            forecast = float(observation.observed_demand)
+        else:
+            base = weighted_forecast(history, short_window=3)
+            forecast = 0.7 * base + 0.3 * history[-1]
         if len(history) >= 2:
             trend = (history[-1] - history[0]) / max(1, len(history) - 1)
-        forecast = 0.7 * base + 0.3 * (history[-1] if history else observation.observed_demand)
         forecast += self._agent._forecast_adjustment(observation, trend)
         forecast += _forecaster_style_adjustment(self._agent.config.forecaster_style, observation, trend)
         return max(0, int(round(forecast)))
@@ -390,6 +436,7 @@ class LLMPlanningStage:
             },
             "instruction": (
                 "Choose one-round-ahead demand forecast, price, and added quantity. "
+                "Set quantity for your expected captured share of demand rather than the full market total. "
                 "Stay within legal ranges. Favor valid JSON over verbosity."
             ),
         }
@@ -404,7 +451,7 @@ class LLMPlanningStage:
                 "legal_price_range": payload["legal_price_range"],
                 "legal_quantity_range": payload["legal_quantity_range"],
                 "fallback_action": payload["fallback_action"],
-                "instruction": "Return minified JSON only with forecast_demand, price, quantity.",
+                "instruction": "Return minified JSON only with forecast_demand, price, quantity. Quantity should reflect expected captured share, not whole-market demand.",
             }
         return json.dumps(payload, ensure_ascii=True, separators=(",", ":"))
 

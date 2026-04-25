@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from pj_ag4.agents import RiskGateStage, build_agents
 from pj_ag4.config import default_simulation_config
 from pj_ag4.contracts import AgentAction, MarketObservation
@@ -21,6 +23,26 @@ def _sample_observation() -> MarketObservation:
         market_avg_price=5.3,
         market_volatility=6.0,
     )
+
+
+def test_first_round_heuristic_forecast_anchors_to_current_observation() -> None:
+    config = default_simulation_config(seed=7, rounds=1)
+    agents = build_agents(config.agents, mode="heuristic", llm_config=config.llm)
+    observation = replace(
+        _sample_observation(),
+        round_index=0,
+        demand_history=(),
+        observed_demand_history=(),
+        price_history=(),
+        reputation_history=(),
+        observed_demand=186,
+        market_avg_price=5.0,
+        market_volatility=0.0,
+    )
+
+    action = agents["Hyperscaler"].decide(observation)
+
+    assert action.forecast_demand >= 170
 
 
 def test_stage_style_mix_creates_distinct_heuristic_actions() -> None:
@@ -50,7 +72,16 @@ def test_risk_gate_styles_apply_different_review_rules() -> None:
     premium_review = RiskGateStage(premium_cfg).review(observation, draft, fallback=fallback)
     spot_review = RiskGateStage(spot_cfg).review(observation, draft, fallback=fallback)
 
-    assert hyper_review.quantity >= draft.quantity
+    assert hyper_review.quantity > premium_review.quantity
     assert premium_review.price >= fallback.price
-    assert premium_review.quantity < draft.quantity
-    assert spot_review.quantity < draft.quantity
+    assert spot_review.quantity < hyper_review.quantity
+
+
+def test_risk_gate_caps_quantity_when_inventory_is_already_above_target() -> None:
+    config = default_simulation_config(seed=7, rounds=1)
+    overstocked = replace(_sample_observation(), own_inventory=95.0, own_last_shortage=0.0, market_volatility=3.0)
+    draft = AgentAction(forecast_demand=150, price=5.0, quantity=80)
+
+    for agent_cfg in config.agents:
+        reviewed = RiskGateStage(agent_cfg).review(overstocked, draft)
+        assert reviewed.quantity <= 10
