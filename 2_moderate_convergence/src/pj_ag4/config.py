@@ -1,0 +1,195 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+import os
+from pathlib import Path
+
+from dotenv import find_dotenv, load_dotenv
+
+
+def _load_runtime_env() -> None:
+    dotenv_path = find_dotenv(usecwd=True)
+    if dotenv_path:
+        load_dotenv(dotenv_path=dotenv_path, override=False)
+        return
+    repo_root_env = Path(__file__).resolve().parents[2] / ".env"
+    if repo_root_env.exists():
+        load_dotenv(dotenv_path=repo_root_env, override=False)
+
+
+@dataclass(frozen=True)
+class MarketConfig:
+    demand_base: float = 180.0
+    demand_growth: float = 0.6
+    seasonal_amplitude_7: float = 18.0
+    seasonal_amplitude_30: float = 10.0
+    seasonal_phase: float = 0.3
+    shock_round: int = 35
+    shock_magnitude: float = -20.0
+    ar_rho: float = 0.45
+    ar_sigma: float = 7.0
+    observation_noise_sigma: float = 5.0
+    demand_floor: int = 50
+    reputation_weight: float = 1.2
+    price_weight: float = 0.7
+    rep_weight_delivery: float = 0.40
+    rep_weight_pricing: float = 0.35
+    rep_weight_cooperation: float = 0.25
+    cooperation_alpha0: float = 0.0
+    cooperation_alpha1: float = 2.5
+    cooperation_alpha2: float = 1.2
+    cooperation_alpha3: float = 1.5
+    transfer_markup: float = 0.05
+    max_transfer: float = 15.0
+    reputation_update_rate: float = 0.25
+    indirect_reciprocity_penalty: float = 0.08
+    demand_window: int = 5
+
+
+@dataclass(frozen=True)
+class AgentConfig:
+    name: str
+    role: str
+    persona: str
+    forecaster_style: str
+    pricer_style: str
+    allocator_style: str
+    risk_style: str
+    base_price: float
+    price_floor: float
+    price_ceiling: float
+    price_step: float
+    quantity_step: int
+    max_quantity: int
+    inventory_start: float
+    reputation_start: float
+    brand_strength: float
+    linear_cost: float
+    quadratic_cost: float
+    holding_cost_rate: float
+    obsolescence_penalty: float
+    sla_penalty: float
+    menu_cost_rate: float
+
+
+@dataclass(frozen=True)
+class LLMConfig:
+    base_url: str = "http://127.0.0.1:8045/v1"
+    api_key: str | None = None
+    model: str = "gemini-3-flash"
+    temperature: float = 0.0
+    max_tokens: int = 512
+    max_retries: int = 1
+    timeout_seconds: float = 30.0
+
+
+@dataclass(frozen=True)
+class SimulationConfig:
+    seed: int = 7
+    rounds: int = 30
+    output_dir: Path = Path("outputs")
+    agent_mode: str = "heuristic"
+    market: MarketConfig = field(default_factory=MarketConfig)
+    llm: LLMConfig | None = None
+    agents: tuple[AgentConfig, ...] = field(default_factory=tuple)
+
+
+def default_simulation_config(
+    *,
+    seed: int = 7,
+    rounds: int = 30,
+    output_dir: str | Path = "outputs",
+    agent_mode: str = "heuristic",
+    llm_base_url: str | None = None,
+    llm_api_key: str | None = None,
+    llm_model: str | None = None,
+) -> SimulationConfig:
+    _load_runtime_env()
+    agents = (
+        AgentConfig(
+            name="Hyperscaler",
+            role="hyperscaler",
+            persona="Scale-dominant operator that values throughput, market share, and capacity continuity.",
+            forecaster_style="momentum_chaser",
+            pricer_style="share_grabber",
+            allocator_style="capacity_expander",
+            risk_style="growth_tolerant",
+            base_price=4.6,
+            price_floor=4.0,
+            price_ceiling=6.0,
+            price_step=0.2,
+            quantity_step=10,
+            max_quantity=120,
+            inventory_start=30.0,
+            reputation_start=0.65,
+            brand_strength=0.05,
+            linear_cost=3.0,
+            quadratic_cost=0.015,
+            holding_cost_rate=0.10,
+            obsolescence_penalty=0.25,
+            sla_penalty=1.20,
+            menu_cost_rate=0.02,
+        ),
+        AgentConfig(
+            name="PremiumCloud",
+            role="premium",
+            persona="SLA-first premium operator that protects brand, uptime, and disciplined monetization.",
+            forecaster_style="signal_smoother",
+            pricer_style="premium_keeper",
+            allocator_style="buffered_allocator",
+            risk_style="sla_guard",
+            base_price=5.4,
+            price_floor=4.4,
+            price_ceiling=7.0,
+            price_step=0.2,
+            quantity_step=10,
+            max_quantity=100,
+            inventory_start=20.0,
+            reputation_start=0.80,
+            brand_strength=0.30,
+            linear_cost=3.4,
+            quadratic_cost=0.010,
+            holding_cost_rate=0.08,
+            obsolescence_penalty=0.20,
+            sla_penalty=1.50,
+            menu_cost_rate=0.02,
+        ),
+        AgentConfig(
+            name="SpotBroker",
+            role="spot",
+            persona="Fast-moving spot broker that hunts volatility and preserves light, flexible inventory.",
+            forecaster_style="volatility_reader",
+            pricer_style="spread_hunter",
+            allocator_style="inventory_light",
+            risk_style="inventory_guard",
+            base_price=4.9,
+            price_floor=3.8,
+            price_ceiling=6.4,
+            price_step=0.2,
+            quantity_step=10,
+            max_quantity=80,
+            inventory_start=15.0,
+            reputation_start=0.55,
+            brand_strength=0.10,
+            linear_cost=3.6,
+            quadratic_cost=0.008,
+            holding_cost_rate=0.12,
+            obsolescence_penalty=0.22,
+            sla_penalty=1.30,
+            menu_cost_rate=0.03,
+        ),
+    )
+    resolved_llm_api_key = llm_api_key or os.getenv("PJ_AG4_OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+    llm_config = LLMConfig(
+        base_url=llm_base_url or os.getenv("PJ_AG4_OPENAI_BASE_URL") or "http://127.0.0.1:8045/v1",
+        api_key=resolved_llm_api_key,
+        model=llm_model or os.getenv("PJ_AG4_OPENAI_MODEL") or "gemini-3-flash",
+    )
+    return SimulationConfig(
+        seed=seed,
+        rounds=rounds,
+        output_dir=Path(output_dir),
+        agent_mode=agent_mode,
+        llm=llm_config,
+        agents=agents,
+    )
