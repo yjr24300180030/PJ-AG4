@@ -33,3 +33,4 @@ class SimulationResult:
     rows: list[object]
     csv_path: Path
     figure_path: Path | None
+    report_path: Path | None = None

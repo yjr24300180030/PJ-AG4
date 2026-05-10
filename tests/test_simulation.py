@@ -14,6 +14,12 @@ def test_run_simulation_writes_outputs(tmp_path) -> None:
     assert result.figure_path is not None
     assert result.figure_path.exists()
     assert result.figure_path.name == "strategy_analysis.pdf"
+    assert result.report_path is not None
+    assert result.report_path.exists()
+    assert result.report_path.name == "simulation_report.md"
+    report_text = result.report_path.read_text(encoding="utf-8")
+    assert "# PJ-AG4 Simulation Report" in report_text
+    assert "## Agent Strategy Comparison" in report_text
 
     with result.csv_path.open(newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))

@@ -8,6 +8,7 @@ from .config import SimulationConfig, default_simulation_config
 from .contracts import SimulationResult
 from .core import SimulationRuntime
 from .environment import write_rows_to_csv
+from .reporting import write_simulation_report
 from .visualization import create_summary_figure
 
 
@@ -16,6 +17,7 @@ def run_simulation(
     *,
     output_dir: str | Path | None = None,
     generate_figure: bool = True,
+    generate_report: bool = True,
     strategy_name: str | None = None,
     agents: Mapping[str, Any] | None = None,
 ) -> SimulationResult:
@@ -38,4 +40,10 @@ def run_simulation(
     if generate_figure:
         figure_path = effective_output_dir / "strategy_analysis.pdf"
         create_summary_figure(rows, figure_path)
-    return SimulationResult(rows=rows, csv_path=csv_path, figure_path=figure_path)
+    report_path: Path | None = None
+    if generate_report:
+        report_path = effective_output_dir / "simulation_report.md"
+        write_simulation_report(report_path, rows=rows, config=config)
+    return SimulationResult(
+        rows=rows, csv_path=csv_path, figure_path=figure_path, report_path=report_path
+    )

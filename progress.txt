@@ -15,12 +15,13 @@ Done:
 - Quantity risk control now targets expected captured demand share instead of the full market forecast, which reduces chronic overstock without changing settlement logic.
 - The heuristic forecaster now anchors round-0 demand to the current market observation when no history exists, removing the low-forecast initialization artifact.
 - A recalibrated heuristic 10-round run reaches 0.994 fill rate with much lower terminal inventory, and the updated LLM smoke path still completes successfully with transfer activity.
+- Single-run Markdown report generation now writes market summaries, round timelines, key events, agent comparisons, and conclusion notes next to the CSV/PDF outputs.
 
 In Progress:
 - None.
 
 Next:
-- Expand the report artifact beyond the single summary figure and add richer strategy commentary.
+- Add structured per-stage decision explanations to enrich the report commentary.
 - Consider splitting `agents.py` further now that provider, observation, runtime, and style logic are isolated conceptually.
 - Add more direct tests around strategy registration and stage-level behavior.
 - Re-run a full multi-round LLM simulation in the recalibrated regime once the local endpoint is responsive enough for longer jobs.

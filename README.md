@@ -48,6 +48,7 @@ lessons.md               Anti-regression notes
 
 - `simulation_results.csv`
 - `strategy_analysis.pdf`
+- `simulation_report.md`
 
 ## Run
 
@@ -115,6 +116,7 @@ Artifacts:
 
 - `outputs/default_run/simulation_results.csv`
 - `outputs/default_run/strategy_analysis.pdf`
+- `outputs/default_run/simulation_report.md`
 
 ## Quant Toolkit
 
@@ -130,4 +132,4 @@ pytest
 
 ## Status
 
-The repository currently has a runnable simulation core, switchable heuristic and LLM agent modes, CSV export, chart generation, quant tooling, and passing tests.
+The repository currently has a runnable simulation core, switchable heuristic and LLM agent modes, CSV export, chart generation, Markdown report generation, quant tooling, and passing tests.
