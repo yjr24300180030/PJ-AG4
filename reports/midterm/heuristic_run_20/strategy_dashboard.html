@@ -1,0 +1,2312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PJ-AG4 Strategy Sandbox</title>
+  <style>
+    :root {
+      --terminal-bg: #0a100c;
+      --terminal-text: #3ddc84;
+      --terminal-text-darker: #2a9d62;
+      --terminal-glow: rgba(61, 220, 132, 0.25);
+      --glitch-color-1: #c7347e;
+      --glitch-color-2: #3e8ad6;
+      --warning-red: #ff4d4d;
+      --warning-red-soft: rgba(255, 77, 77, 0.14);
+      --warning-orange: #ff5a36;
+      --warning-orange-deep: #b63a1f;
+      --warning-orange-soft: rgba(255, 90, 54, 0.18);
+      --blue-soft: rgba(62, 138, 214, 0.12);
+      --green-soft: rgba(61, 220, 132, 0.05);
+    }
+
+    @keyframes scanline {
+      0% { background-position: 0 0; }
+      100% { background-position: 0 100%; }
+    }
+
+    @keyframes flicker {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.985; }
+    }
+
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+
+    * { box-sizing: border-box; }
+
+    html,
+    body {
+      min-height: 100%;
+      background: #000;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Fira Code", "Operator Mono", "Courier New", Courier, monospace;
+      color: var(--terminal-text);
+    }
+
+    .shell {
+      width: min(1480px, calc(100vw - 20px));
+      min-height: calc(100vh - 20px);
+      margin: 10px auto 28px;
+    }
+
+    .slide-container {
+      width: 100%;
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: visible;
+      background: var(--terminal-bg);
+      border: 2px solid var(--terminal-text-darker);
+      border-radius: 4px;
+      box-shadow: 0 0 15px var(--terminal-glow), inset 0 0 80px rgba(0,0,0,0.8);
+      animation: flicker 0.2s infinite;
+    }
+
+    .slide-container::before {
+      content: " ";
+      display: block;
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.2) 50%);
+      z-index: 10;
+      background-size: 100% 3px;
+      pointer-events: none;
+      animation: scanline 20s linear infinite;
+    }
+
+    .slide-header,
+    .summary-row,
+    .slide-content,
+    .slide-footer {
+      position: relative;
+      z-index: 5;
+    }
+
+    .slide-header {
+      padding: 14px 28px 10px 28px;
+      border-bottom: 1px solid var(--terminal-text-darker);
+      text-shadow: 0 0 4px var(--terminal-glow);
+    }
+
+    .header-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(360px, 0.92fr);
+      gap: 18px 28px;
+      align-items: center;
+    }
+
+    .title-block {
+      min-width: 0;
+    }
+
+    .page-kicker {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--terminal-text-darker);
+      margin-bottom: 10px;
+    }
+
+    .slide-title {
+      font-size: clamp(1.45rem, 2.4vw, 2.35rem);
+      font-weight: 700;
+      margin: 0;
+      position: relative;
+      text-transform: uppercase;
+      line-height: 1.08;
+    }
+
+    .glitch-effect {
+      position: relative;
+    }
+
+    .glitch-effect::before,
+    .glitch-effect::after {
+      content: attr(data-text);
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--terminal-bg);
+      overflow: hidden;
+    }
+
+    .glitch-effect::before {
+      left: 2px;
+      text-shadow: -2px 0 var(--glitch-color-1);
+      animation: glitch-anim-1 3s infinite linear reverse;
+    }
+
+    .glitch-effect::after {
+      left: -2px;
+      text-shadow: -2px 0 var(--glitch-color-2);
+      animation: glitch-anim-2 2.5s infinite linear reverse;
+    }
+
+    @keyframes glitch-anim-1 {
+      0%, 100% { clip-path: inset(45% 0 56% 0); }
+      25% { clip-path: inset(0 0 100% 0); }
+      50% { clip-path: inset(80% 0 2% 0); }
+      75% { clip-path: inset(40% 0 45% 0); }
+    }
+
+    @keyframes glitch-anim-2 {
+      0%, 100% { clip-path: inset(65% 0 30% 0); }
+      25% { clip-path: inset(20% 0 75% 0); }
+      50% { clip-path: inset(90% 0 1% 0); }
+      75% { clip-path: inset(10% 0 88% 0); }
+    }
+
+    .cursor {
+      display: inline-block;
+      width: 1rem;
+      height: 1.8rem;
+      background: var(--terminal-text);
+      animation: blink 1.2s steps(1) infinite;
+      margin-left: 10px;
+      box-shadow: 0 0 5px var(--terminal-glow);
+      vertical-align: middle;
+    }
+
+    .slide-subtitle {
+      margin: 0;
+      font-size: 0.88rem;
+      line-height: 1.55;
+      color: rgba(61, 220, 132, 0.85);
+      max-width: 46ch;
+      justify-self: end;
+    }
+
+    .system-message-box {
+      border: 1px dotted var(--terminal-text-darker);
+      padding: 10px 12px;
+      margin-top: 10px;
+      background: rgba(61, 220, 132, 0.05);
+      font-size: 0.84rem;
+      line-height: 1.5;
+    }
+
+    .system-message-box::before {
+      content: "[LOG]: ";
+      font-weight: bold;
+      color: var(--terminal-text-darker);
+    }
+
+    .operator-box {
+      background: rgba(61, 220, 132, 0.05);
+      border: 1px dashed var(--terminal-text-darker);
+      padding: 14px;
+      position: relative;
+      min-width: 0;
+    }
+
+    .tagged-box::before {
+      content: attr(data-tag);
+      position: absolute;
+      top: -10px;
+      left: 15px;
+      background: var(--terminal-bg);
+      padding: 0 10px;
+      font-size: 0.76rem;
+      color: var(--terminal-text-darker);
+    }
+
+    .param-line {
+      margin-bottom: 6px;
+      font-size: 0.82rem;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .param-label {
+      color: var(--terminal-text-darker);
+      white-space: nowrap;
+      min-width: 82px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .param-value {
+      text-align: right;
+      word-break: break-word;
+      color: #fff;
+    }
+
+    .progress-block {
+      margin-top: 8px;
+    }
+
+    .summary-row {
+      padding: 10px 28px 0 28px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .metric-card {
+      padding: 8px 10px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 4px 12px;
+    }
+
+    .metric-card::before {
+      display: none;
+    }
+
+    .metric-card .step-tag {
+      margin: 0;
+    }
+
+    .metric-value {
+      display: block;
+      margin-top: 0;
+      font-size: 1rem;
+      line-height: 1.1;
+      font-weight: 700;
+      color: #fff;
+      justify-self: end;
+    }
+
+    .metric-copy {
+      display: none;
+    }
+
+    .metric-card .progress-block {
+      grid-column: 1 / -1;
+      margin-top: 4px;
+    }
+
+    .progress-info {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 0.72rem;
+      margin-bottom: 6px;
+      color: var(--terminal-text-darker);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .progress-bar-container,
+    .meter-container,
+    .loading-bar-container {
+      position: relative;
+      overflow: hidden;
+      background: rgba(42, 157, 98, 0.2);
+      border: 1px solid var(--terminal-text-darker);
+    }
+
+    .progress-bar-container,
+    .meter-container {
+      height: 12px;
+      width: 100%;
+    }
+
+    .loading-bar-container {
+      width: 100%;
+      height: 4px;
+      margin-top: 10px;
+      border-color: rgba(42, 157, 98, 0.35);
+    }
+
+    .progress-bar-fill,
+    .meter-fill,
+    .loading-bar {
+      height: 100%;
+      background: var(--terminal-text);
+      box-shadow: 0 0 10px var(--terminal-glow);
+      width: 0%;
+    }
+
+    .slide-content {
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      padding: 18px 28px 20px 28px;
+      overflow: visible;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.28fr) minmax(320px, 0.72fr);
+      align-items: stretch;
+      gap: 18px;
+    }
+
+    .main-column {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      min-width: 0;
+      min-height: 0;
+    }
+
+    .section-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      min-width: 0;
+      min-height: 0;
+    }
+
+    .comparison-card {
+      border: 1px solid var(--terminal-text-darker);
+      padding: 12px 14px;
+      background: rgba(61, 220, 132, 0.03);
+      position: relative;
+      min-width: 0;
+    }
+
+    .comparison-card::before {
+      content: attr(data-tag);
+      position: absolute;
+      top: -10px;
+      left: 12px;
+      background: var(--terminal-bg);
+      padding: 0 10px;
+      font-size: 0.72rem;
+      color: var(--terminal-text-darker);
+      letter-spacing: 0.08em;
+    }
+
+    .comparison-card.warning-mode {
+      border-color: var(--glitch-color-1);
+      background: rgba(199, 52, 126, 0.05);
+      box-shadow: inset 0 0 30px rgba(199, 52, 126, 0.18);
+    }
+
+    .comparison-card.info-mode {
+      border-color: var(--glitch-color-2);
+      background: rgba(62, 138, 214, 0.05);
+      box-shadow: inset 0 0 22px rgba(62, 138, 214, 0.12);
+    }
+
+    .comparison-card.stable-mode {
+      border-color: var(--terminal-text-darker);
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .step-tag {
+      font-size: 0.72rem;
+      color: var(--terminal-text-darker);
+      text-transform: uppercase;
+      margin-bottom: 2px;
+      display: block;
+      letter-spacing: 0.1em;
+    }
+
+    .panel-title {
+      font-size: 1.06rem;
+      margin: 0;
+      line-height: 1.25;
+      font-weight: 600;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .status-tag {
+      display: inline-block;
+      padding: 2px 6px;
+      font-size: 0.68rem;
+      border: 1px solid currentColor;
+      vertical-align: middle;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      background: transparent;
+      line-height: 1.45;
+    }
+
+    .status-positive {
+      color: var(--terminal-text);
+      border-color: var(--terminal-text);
+      background: rgba(61, 220, 132, 0.1);
+    }
+
+    .status-neutral {
+      color: var(--terminal-text-darker);
+      border-color: var(--terminal-text-darker);
+    }
+
+    .status-blue {
+      color: var(--glitch-color-2);
+      border-color: var(--glitch-color-2);
+      background: rgba(62, 138, 214, 0.08);
+    }
+
+    .status-danger {
+      color: var(--glitch-color-1);
+      border-color: var(--glitch-color-1);
+      background: rgba(199, 52, 126, 0.08);
+    }
+
+    .chart-shell {
+      margin-top: 10px;
+      height: 260px;
+      border: 1px solid rgba(42, 157, 98, 0.45);
+      background: rgba(0,0,0,0.16);
+      position: relative;
+    }
+
+    .chart-stage {
+      margin-top: 10px;
+      position: relative;
+    }
+
+    .chart-pane {
+      display: none;
+    }
+
+    .chart-pane.active {
+      display: block;
+    }
+
+    .view-toggle {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .view-toggle .terminal-button {
+      width: auto;
+      min-width: 120px;
+    }
+
+    svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      overflow: hidden;
+    }
+
+    .control-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px 14px;
+      margin-top: 10px;
+    }
+
+    .control-block {
+      border-left: 2px solid var(--terminal-text-darker);
+      padding-left: 10px;
+      min-width: 0;
+    }
+
+    .control-label {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 0.72rem;
+      color: var(--terminal-text-darker);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .control-value {
+      color: #fff;
+    }
+
+    .terminal-select,
+    .terminal-button {
+      width: 100%;
+      background: var(--terminal-bg);
+      color: var(--terminal-text);
+      border: 1px solid var(--terminal-text-darker);
+      border-radius: 0;
+      outline: none;
+      font-family: inherit;
+    }
+
+    .terminal-select {
+      padding: 8px 10px;
+      appearance: none;
+    }
+
+    .terminal-select:focus,
+    .terminal-button:focus,
+    input[type="range"]:focus {
+      outline: 1px solid var(--terminal-text);
+      outline-offset: 2px;
+    }
+
+    .terminal-button {
+      padding: 7px 10px;
+      cursor: pointer;
+      box-shadow: 4px 4px 0px var(--terminal-text-darker);
+      text-transform: uppercase;
+      font-size: 0.72rem;
+      font-weight: bold;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+    }
+
+    .terminal-button:hover {
+      transform: translate(-1px, -1px);
+    }
+
+    .terminal-button.active {
+      background: var(--terminal-text);
+      color: var(--terminal-bg);
+      border-color: var(--terminal-text);
+      box-shadow: 0 0 15px var(--terminal-glow);
+    }
+
+    .control-actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .control-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+      margin-bottom: 6px;
+    }
+
+    .web-runtime-active .control-meta {
+      display: none;
+    }
+
+    .runtime-panel {
+      margin-top: 12px;
+      margin-bottom: 12px;
+      border: 1px solid rgba(42, 157, 98, 0.45);
+      background: rgba(0, 0, 0, 0.22);
+      padding: 10px 12px 12px;
+    }
+
+    .runtime-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .runtime-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .runtime-label {
+      display: block;
+      font-size: 0.72rem;
+      color: var(--terminal-text-darker);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .runtime-actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .runtime-actions .terminal-button {
+      text-align: center;
+      text-decoration: none;
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .control-stream {
+      margin-top: 14px;
+      border-top: 1px dashed rgba(42, 157, 98, 0.45);
+      padding-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 176px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      overscroll-behavior: contain;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+    .control-stream::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+      display: none;
+    }
+
+    .stream-line {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      font-size: 0.78rem;
+      line-height: 1.5;
+      color: rgba(61, 220, 132, 0.9);
+    }
+
+    .stream-prefix {
+      color: var(--terminal-text-darker);
+      white-space: nowrap;
+    }
+
+    .stream-agent {
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    .stream-text {
+      min-width: 0;
+      word-break: break-word;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      height: 18px;
+      margin: 0;
+      padding: 0;
+      border: 1px solid var(--terminal-text-darker);
+      background: transparent;
+      accent-color: var(--terminal-text);
+      appearance: none;
+      -webkit-appearance: none;
+      --slider-fill: var(--terminal-text);
+      --slider-block-a: var(--terminal-text-darker);
+      --slider-block-b: rgba(42, 157, 98, 0.22);
+    }
+
+    input[type="range"]::-webkit-slider-runnable-track {
+      height: 16px;
+      border: none;
+      background:
+        repeating-linear-gradient(
+          90deg,
+          var(--slider-block-a) 0 12px,
+          var(--slider-block-b) 12px 16px
+        );
+    }
+
+    input[type="range"]::-moz-range-track {
+      height: 16px;
+      border: none;
+      background:
+        repeating-linear-gradient(
+          90deg,
+          var(--slider-block-a) 0 12px,
+          var(--slider-block-b) 12px 16px
+        );
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 12px;
+      height: 18px;
+      margin-top: -1px;
+      border: 1px solid var(--slider-fill);
+      background: var(--terminal-bg);
+      box-shadow: 3px 3px 0px var(--slider-fill);
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 12px;
+      height: 18px;
+      border: 1px solid var(--slider-fill);
+      border-radius: 0;
+      background: var(--terminal-bg);
+      box-shadow: 3px 3px 0px var(--slider-fill);
+    }
+
+    input.slider-round {
+      --slider-fill: var(--terminal-text);
+      --slider-block-a: var(--terminal-text);
+      --slider-block-b: rgba(42, 157, 98, 0.22);
+    }
+
+    input.slider-shock {
+      --slider-fill: var(--warning-orange);
+      --slider-block-a: var(--warning-orange);
+      --slider-block-b: var(--warning-orange-deep);
+    }
+
+    input.slider-bias {
+      --slider-fill: var(--glitch-color-2);
+      --slider-block-a: var(--terminal-text-darker);
+      --slider-block-b: var(--glitch-color-2);
+    }
+
+    .focus-params {
+      margin-top: 10px;
+      border-left: 3px solid var(--terminal-text-darker);
+      padding-left: 12px;
+    }
+
+    .focus-card .param-line {
+      margin-bottom: 6px;
+    }
+
+    .focus-copy {
+      margin-top: 10px;
+      font-size: 0.86rem;
+      line-height: 1.45;
+      color: rgba(61, 220, 132, 0.9);
+    }
+
+    .focus-log,
+    .event-log {
+      margin-top: 12px;
+      padding-right: 0;
+    }
+
+    .focus-log {
+      max-height: none;
+      overflow: visible;
+    }
+
+    .event-log {
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-right: 4px;
+      padding-bottom: 2px;
+      overscroll-behavior: contain;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+    .event-log::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+      display: none;
+    }
+
+    .event-panel {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .event-panel .event-log {
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    .log-section {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .log-entry {
+      border-left: 3px solid var(--terminal-text-darker);
+      padding-left: 12px;
+      position: relative;
+      transition: transform 0.18s ease, border-color 0.18s ease;
+    }
+
+    .log-entry.clickable {
+      cursor: pointer;
+    }
+
+    .log-entry.clickable:hover {
+      transform: translateX(2px);
+    }
+
+    .log-label {
+      font-size: 0.72rem;
+      color: var(--terminal-text-darker);
+      text-transform: uppercase;
+      margin-bottom: 5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      letter-spacing: 0.06em;
+    }
+
+    .log-body {
+      font-size: 0.88rem;
+      line-height: 1.42;
+      margin: 0;
+      word-break: break-word;
+    }
+
+    .muted-copy {
+      display: block;
+      margin-top: 4px;
+      color: var(--terminal-text-darker);
+      font-size: 0.78rem;
+      line-height: 1.34;
+    }
+
+    .agent-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .agent-section-copy {
+      margin-top: 8px;
+      font-size: 0.8rem;
+      color: rgba(61, 220, 132, 0.88);
+      line-height: 1.5;
+    }
+
+    .agent-card {
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+      border-left: 4px solid var(--agent-color, var(--terminal-text-darker));
+    }
+
+    .agent-card:hover {
+      transform: translateY(-2px);
+    }
+
+    .agent-card.active {
+      box-shadow: 0 0 15px rgba(61, 220, 132, 0.18);
+    }
+
+    .flow-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 10px 0 8px;
+    }
+
+    .flow-node {
+      border: 1px solid currentColor;
+      padding: 4px 8px;
+      text-align: center;
+      min-width: 68px;
+      font-size: 0.72rem;
+      background: rgba(0,0,0,0.25);
+      line-height: 1.4;
+    }
+
+    .agent-copy {
+      margin-top: 8px;
+      font-size: 0.8rem;
+      line-height: 1.4;
+      color: rgba(61, 220, 132, 0.88);
+    }
+
+    .agent-params {
+      margin-top: 8px;
+      border-left: 3px solid rgba(42, 157, 98, 0.7);
+      padding-left: 10px;
+    }
+
+    .agent-params .param-line {
+      margin-bottom: 4px;
+      font-size: 0.74rem;
+    }
+
+    .slide-footer {
+      padding: 8px 18px;
+      background: var(--terminal-text-darker);
+      color: var(--terminal-bg);
+      font-size: 0.72rem;
+      font-weight: bold;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px 10px;
+      text-shadow: none;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .empty-log {
+      color: var(--terminal-text-darker);
+      font-size: 0.78rem;
+      line-height: 1.4;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    @media (max-width: 1220px) {
+      .hero-grid {
+        grid-template-columns: 1fr;
+      }
+      .header-grid {
+        grid-template-columns: 1fr;
+      }
+      .slide-subtitle {
+        justify-self: start;
+        max-width: 72ch;
+      }
+      .summary-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 900px) {
+      .agent-grid {
+        grid-template-columns: 1fr;
+      }
+      .summary-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .shell {
+        width: min(calc(100vw - 12px), 1480px);
+        margin: 6px auto;
+      }
+
+      .slide-header,
+      .summary-row,
+      .slide-content {
+        padding-left: 18px;
+        padding-right: 18px;
+      }
+
+      .control-grid,
+      .control-actions,
+      .runtime-grid,
+      .runtime-actions {
+        grid-template-columns: 1fr;
+      }
+
+      .slide-footer {
+        justify-content: flex-start;
+      }
+    }
+  </style>
+</head>
+<body class="">
+  <div class="shell">
+    <div class="slide-container">
+      <header class="slide-header">
+        <div class="header-grid">
+          <div class="title-block">
+            <div class="page-kicker">PJ-AG4 / Strategy Dashboard</div>
+            <h1 class="slide-title glitch-effect" data-text="GPU market sandbox">GPU market sandbox<span class="cursor"></span></h1>
+          </div>
+          <p class="slide-subtitle">Market decisions, trend reading, event diagnostics, and sandbox controls on one terminal board.</p>
+        </div>
+      </header>
+
+      <section class="summary-row">
+        <article class="comparison-card metric-card stable-mode" data-tag="[MARKET_PNL]">
+          <span class="step-tag">Cumulative market payoff</span>
+          <strong class="metric-value" id="kpi-profit">+0.0</strong>
+          <p class="metric-copy">Net payoff after production, transfers, holding cost, and SLA penalties.</p>
+        </article>
+
+        <article class="comparison-card metric-card stable-mode" data-tag="[FULFILLMENT]">
+          <span class="step-tag">Delivered vs true demand</span>
+          <strong class="metric-value" id="kpi-fulfillment">0%</strong>
+          <div class="progress-block">
+            <div class="progress-bar-container">
+              <div class="progress-bar-fill" id="kpi-fulfillment-bar"></div>
+            </div>
+          </div>
+        </article>
+
+        <article class="comparison-card metric-card stable-mode" data-tag="[AVG_PRICE]">
+          <span class="step-tag">Mean clearing price</span>
+          <strong class="metric-value" id="kpi-price">0.00</strong>
+          <p class="metric-copy">Use it to read premium harvest versus share-grab posture.</p>
+        </article>
+
+        <article class="comparison-card metric-card stable-mode" data-tag="[TRANSFER_VOL]">
+          <span class="step-tag">Emergency volume shifted</span>
+          <strong class="metric-value" id="kpi-transfer">0.0</strong>
+          <p class="metric-copy">Cross-agent support activated during service pressure.</p>
+        </article>
+      </section>
+
+      <main class="slide-content">
+        <div class="hero-grid" id="hero-grid">
+          <div class="main-column" id="main-column">
+            <article class="comparison-card stable-mode" data-tag="[TELEMETRY_VIEWPORT]">
+              <div class="panel-header">
+                <div>
+                  <span class="step-tag">Shared chart bay</span>
+                  <h2 class="panel-title" id="chart-panel-title">Demand / sales / projected shock trace</h2>
+                </div>
+                <div class="view-toggle">
+                  <button type="button" class="terminal-button active" data-chart-view="market">Market view</button>
+                  <button type="button" class="terminal-button" data-chart-view="agent">Agent view</button>
+                </div>
+              </div>
+              <div class="legend" id="chart-panel-legend"></div>
+              <div class="chart-stage">
+                <div class="chart-pane active" id="market-pane">
+                  <div class="system-message-box" id="market-readout">&gt; awaiting market trace</div>
+                  <div class="chart-shell">
+                    <svg id="market-chart" role="img" aria-label="Market chart"></svg>
+                  </div>
+                </div>
+                <div class="chart-pane" id="agent-pane">
+                  <div class="system-message-box" id="agent-readout">&gt; awaiting agent trace</div>
+                  <div class="chart-shell">
+                    <svg id="agent-chart" role="img" aria-label="Agent chart"></svg>
+                  </div>
+                </div>
+              </div>
+            </article>
+            <article class="comparison-card stable-mode focus-card" id="focus-panel" data-tag="[ROUND_INSPECTOR]">
+            <div class="panel-header">
+              <div>
+                <span class="step-tag">Focused round</span>
+                <h2 class="panel-title" id="focus-round-label">R0</h2>
+              </div>
+              <span class="status-tag status-neutral" id="detail-regime-tag">Stable</span>
+            </div>
+
+            <p class="focus-copy" id="focus-round-copy">Demand and execution details for the selected round.</p>
+
+            <div class="focus-params">
+              <div class="param-line"><span class="param-label">Regime</span><span class="param-value" id="detail-regime">Controlled market</span></div>
+              <div class="param-line"><span class="param-label">Spread</span><span class="param-value" id="detail-spread">0.00</span></div>
+              <div class="param-line"><span class="param-label">Demand gap</span><span class="param-value" id="detail-gap">0.0</span></div>
+              <div class="param-line"><span class="param-label">Shock</span><span class="param-value" id="detail-shock">0.0</span></div>
+              <div class="param-line"><span class="param-label">Transfer</span><span class="param-value" id="detail-transfer">0.0</span></div>
+            </div>
+
+            <div class="progress-block">
+              <div class="panel-header">
+                <div class="progress-info">
+                  <span>Round fulfillment</span>
+                  <span id="detail-fulfillment">0%</span>
+                </div>
+              </div>
+              <div class="progress-bar-container">
+                <div class="progress-bar-fill" id="detail-fulfillment-bar"></div>
+              </div>
+            </div>
+
+            <div class="log-section focus-log" id="round-agent-log"></div>
+          </article>
+
+          </div>
+
+          <aside class="section-stack" id="side-column">
+            <article class="comparison-card stable-mode" id="control-panel" data-tag="[CONTROL_SURFACE]">
+              <div class="panel-header">
+                <div>
+                  <span class="step-tag">Scenario rail</span>
+                  <h2 class="panel-title">Simulation controls</h2>
+                </div>
+                <span class="status-tag status-neutral">Projection only</span>
+              </div>
+
+              <div class="control-meta">
+                <span class="status-tag status-neutral" id="hero-strategy">heuristic</span>
+                <span class="status-tag status-neutral">Seed <span id="hero-seed">7</span></span>
+                <span class="status-tag status-neutral">Rounds <span id="hero-rounds">30</span></span>
+                <span class="status-tag status-neutral">Agents <span id="hero-agents">3</span></span>
+              </div>
+
+              
+
+              <div class="control-grid">
+                <div class="control-block">
+                  <label class="control-label" for="round-slider"><span>Round focus</span><span class="control-value" id="round-slider-value">R0</span></label>
+                  <input id="round-slider" class="slider-round" type="range" min="0" max="0" step="1" value="0" />
+                </div>
+
+                <div class="control-block">
+                  <label class="control-label" for="agent-select"><span>Agent focus</span><span class="control-value" id="agent-select-value">all</span></label>
+                  <select id="agent-select" class="terminal-select"></select>
+                </div>
+
+                <div class="control-block">
+                  <label class="control-label" for="metric-select"><span>Agent metric</span><span class="control-value" id="metric-select-value">cumProfit</span></label>
+                  <select id="metric-select" class="terminal-select">
+                    <option value="cumProfit">Cumulative profit</option>
+                    <option value="profit">Round profit</option>
+                    <option value="reputation">Reputation</option>
+                    <option value="serviceRate">Service rate</option>
+                    <option value="price">Price</option>
+                    <option value="quantity">Quantity</option>
+                  </select>
+                </div>
+
+                <div class="control-block">
+                  <label class="control-label" for="shock-scale"><span>Shock scale</span><span class="control-value" id="shock-scale-value">0.0x</span></label>
+                  <input id="shock-scale" class="slider-shock" type="range" min="-2" max="2" step="0.1" value="0" />
+                </div>
+
+                <div class="control-block">
+                  <label class="control-label" for="demand-bias"><span>Demand bias</span><span class="control-value" id="demand-bias-value">+0</span></label>
+                  <input id="demand-bias" class="slider-bias" type="range" min="-40" max="40" step="1" value="0" />
+                </div>
+              </div>
+
+              <div class="control-actions">
+                <button type="button" class="terminal-button active" data-toggle="shocks">Shocks</button>
+                <button type="button" class="terminal-button active" data-toggle="defaults">Defaults</button>
+                <button type="button" class="terminal-button active" data-toggle="dumps">Dumps</button>
+                <button type="button" class="terminal-button active" data-toggle="transfers">Transfers</button>
+              </div>
+
+              <div class="control-stream" id="control-stream"></div>
+            </article>
+            <article class="comparison-card stable-mode event-panel" id="event-panel" data-tag="[EVENT_TAPE]">
+              <div class="panel-header">
+                <div>
+                  <span class="step-tag">Event stream</span>
+                  <h2 class="panel-title">Highest-impact moments</h2>
+                </div>
+              </div>
+              <div class="log-section event-log" id="event-list"></div>
+            </article>
+          </aside>
+        </div>
+
+        <section class="comparison-card stable-mode" data-tag="[MODEL_DETAIL_RACK]">
+          <div class="panel-header">
+            <div>
+              <span class="step-tag">Model detail rack</span>
+              <h2 class="panel-title">Agent profiles / click to focus</h2>
+            </div>
+          </div>
+          <p class="agent-section-copy">Keep all three models visible. Clicking any model card updates agent focus across the chart view, controls, footer, and round inspector.</p>
+          <section class="agent-grid" id="agent-grid"></section>
+        </section>
+      </main>
+
+      <footer class="slide-footer" id="footer-bar">
+        <span id="footer-node">NODE: R0</span>
+        <span id="footer-total">TOTAL: 0</span>
+        <span id="footer-status">STATUS: STABLE</span>
+        <span id="footer-agent">AGENT: ALL</span>
+        <span id="footer-metric">METRIC: CUMPROFIT</span>
+      </footer>
+    </div>
+  </div>
+
+  <script id="dashboard-data" type="application/json">{"meta":{"seed":7,"strategy":"heuristic","rounds":20,"agents":["Hyperscaler","PremiumCloud","SpotBroker"],"title":"PJ-AG4 Strategy Sandbox"},"overview":{"totalDemand":3758.0,"totalSales":3754.050794638433,"fulfillmentRatio":0.9989491204466294,"avgPrice":5.4433333333333325,"totalProfit":763.9112660783892,"transferVolume":0.0,"shockRounds":0,"avgDemandGap":3.2,"rounds":20},"market":{"rounds":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19],"demand":[181.0,197.0,198.0,202.0,193.0,182.0,171.0,194.0,196.0,200.0,198.0,186.0,176.0,172.0,190.0,197.0,198.0,194.0,173.0,160.0],"sales":[177.05079463843342,197.0,198.0,202.0,193.0,182.0,171.0,194.0,196.0,199.99999999999997,197.99999999999997,186.0,176.0,172.0,190.00000000000003,197.00000000000003,198.0,194.0,173.0,160.0],"avgPrice":[5.2,5.133333333333333,5.3999999999999995,5.466666666666666,5.466666666666666,5.466666666666666,5.466666666666666,5.533333333333334,5.533333333333334,5.466666666666666,5.466666666666666,5.466666666666666,5.466666666666666,5.466666666666666,5.466666666666666,5.466666666666666,5.466666666666666,5.466666666666666,5.466666666666666,5.533333333333334],"shock":[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0],"transferVolume":[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]},"agents":[{"name":"Hyperscaler","role":"Scale-dominant","persona":"Scale-dominant operator that values throughput, market share, and capacity continuity.","color":"#3ddc84","surface":"rgba(61, 220, 132, 0.16)","summary":{"cumulativeProfit":-1909.16120006905,"meanProfit":-95.45806000345249,"profitVolatility":48.7617162894314,"avgReputation":0.6004904863641832,"avgDeliveryReputation":0.947666488626794,"avgPricingReputation":0.09719080683595395,"avgCooperationReputation":0.48750000000000004,"avgServiceRate":1.0,"avgPrice":4.0,"totalShortage":0.0,"defaults":0.0,"dumps":20.0},"series":{"rounds":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19],"price":[4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0],"quantity":[100,110,120,120,120,120,100,100,120,120,120,120,100,100,100,120,110,120,110,90],"profit":[-30.47529168219699,-94.11788582811673,-116.18538190105347,-97.76656754058307,-127.3579541010148,-160.0132839318201,-62.63335735410168,7.6940992730155875,-116.59072496556522,-128.89931244504353,-135.65171011539618,-165.0916120403907,-61.35534942727414,-70.53750504808589,-29.377852395452358,-141.2243001867345,-74.11479221241721,-148.88296035137245,-132.22527014300033,-24.354187672446006],"cumProfit":[-30.47529168219699,-124.59317751031372,-240.7785594113672,-338.5451269519503,-465.9030810529651,-625.9163649847852,-688.5497223388869,-680.8556230658713,-797.4463480314365,-926.34566047648,-1061.9973705918762,-1227.0889826322668,-1288.444332059541,-1358.981837107627,-1388.3596895030794,-1529.583989689814,-1603.698781902231,-1752.5817422536036,-1884.807012396604,-1909.16120006905],"reputation":[0.6125,0.6087500000000001,0.6059375,0.603828125,0.60224609375,0.6010595703125001,0.600169677734375,0.5995022583007813,0.599001693725586,0.5986262702941896,0.5983447027206421,0.5981335270404816,0.5979751452803612,0.597856358960271,0.5977672692202032,0.5977004519151524,0.5976503389363643,0.5976127542022733,0.5975845656517049,0.5975634242387787],"repDelivery":[0.7375,0.8031250000000001,0.8523437500000001,0.8892578125,0.916943359375,0.9377075195312501,0.9532806396484376,0.9649604797363281,0.9737203598022461,0.9802902698516847,0.9852177023887635,0.9889132767915726,0.9916849575936795,0.9937637181952597,0.9953227886464447,0.9964920914848335,0.9973690686136252,0.9980268014602189,0.9985201010951642,0.9988900758213731],"repPricing":[0.48750000000000004,0.36562500000000003,0.27421875,0.20566406250000002,0.15424804687500002,0.11568603515625,0.08676452636718751,0.06507339477539063,0.04880504608154297,0.03660378456115723,0.027452838420867924,0.02058962881565094,0.015442221611738206,0.011581666208803654,0.008686249656602741,0.006514687242452056,0.004886015431839042,0.0036645115738792814,0.002748383680409461,0.0020612877603070957],"repCooperation":[0.48750000000000004,0.48750000000000004,0.48750000000000004,0.48750000000000004,0.48750000000000004,0.48750000000000004,0.48750000000000004,0.48750000000000004,0.48750000000000004,0.48750000000000004,0.48750000000000004,0.48750000000000004,0.48750000000000004,0.48750000000000004,0.48750000000000004,0.48750000000000004,0.48750000000000004,0.48750000000000004,0.48750000000000004,0.48750000000000004],"serviceRate":[1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]}},{"name":"PremiumCloud","role":"SLA-first","persona":"SLA-first premium operator that protects brand, uptime, and disciplined monetization.","color":"#3e8ad6","surface":"rgba(62, 138, 214, 0.16)","summary":{"cumulativeProfit":1495.7303492739313,"meanProfit":74.78651746369658,"profitVolatility":24.105237886519376,"avgReputation":0.8960761090865343,"avgDeliveryReputation":0.970095136358168,"avgPricingReputation":0.970095136358168,"avgCooperationReputation":0.6000000000000001,"avgServiceRate":1.0,"avgPrice":6.96,"totalShortage":0.0,"defaults":0.0,"dumps":0.0},"series":{"rounds":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19],"price":[6.6,6.6,7.0,7.0,7.0,7.0,7.0,7.0,7.0,7.0,7.0,7.0,7.0,7.0,7.0,7.0,7.0,7.0,7.0,7.0],"quantity":[10,30,30,30,20,30,20,30,20,30,30,30,20,30,20,30,20,30,30,20],"profit":[138.38541122885476,69.21608024041304,53.94328264287367,65.34884854702352,98.14133297385027,49.46261322943039,79.54776325669906,68.30773696993265,110.35676347554593,67.3448817144617,65.33576503437247,54.239656710292536,84.89780448450841,41.70992273555317,97.65260494110645,64.62448820711917,105.3280156710145,62.28930575157423,42.80268367477946,76.79538778452624],"cumProfit":[138.38541122885476,207.60149146926778,261.54477411214145,326.893622659165,425.0349556330152,474.49756886244563,554.0453321191446,622.3530690890773,732.7098325646232,800.0547142790849,865.3904793134574,919.6301360237499,1004.5279405082583,1046.2378632438115,1143.8904681849178,1208.514956392037,1313.8429720630515,1376.1322778146257,1418.9349614894052,1495.7303492739313],"reputation":[0.8,0.83,0.8524999999999999,0.869375,0.88203125,0.8915234375,0.8986425781249999,0.90398193359375,0.9079864501953125,0.9109898376464843,0.9132423782348632,0.9149317836761475,0.9161988377571106,0.9171491283178329,0.9178618462383746,0.918396384678781,0.9187972885090858,0.9190979663818143,0.9193234747863607,0.9194926060897706],"repDelivery":[0.8500000000000001,0.8875000000000001,0.915625,0.93671875,0.9525390625000001,0.9644042968750001,0.97330322265625,0.9799774169921875,0.9849830627441407,0.9887372970581055,0.9915529727935791,0.9936647295951844,0.9952485471963883,0.9964364103972913,0.9973273077979684,0.9979954808484763,0.9984966106363573,0.998872457977268,0.999154343482951,0.9993657576122132],"repPricing":[0.8500000000000001,0.8875000000000001,0.915625,0.93671875,0.9525390625000001,0.9644042968750001,0.97330322265625,0.9799774169921875,0.9849830627441407,0.9887372970581055,0.9915529727935791,0.9936647295951844,0.9952485471963883,0.9964364103972913,0.9973273077979684,0.9979954808484763,0.9984966106363573,0.998872457977268,0.999154343482951,0.9993657576122132],"repCooperation":[0.6000000000000001,0.6000000000000001,0.6000000000000001,0.6000000000000001,0.6000000000000001,0.6000000000000001,0.6000000000000001,0.6000000000000001,0.6000000000000001,0.6000000000000001,0.6000000000000001,0.6000000000000001,0.6000000000000001,0.6000000000000001,0.6000000000000001,0.6000000000000001,0.6000000000000001,0.6000000000000001,0.6000000000000001,0.6000000000000001],"serviceRate":[1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]}},{"name":"SpotBroker","role":"Volatility hunter","persona":"Fast-moving spot broker that hunts volatility and preserves light, flexible inventory.","color":"#c7347e","surface":"rgba(199, 52, 126, 0.16)","summary":{"cumulativeProfit":1177.3421168735072,"meanProfit":58.86710584367537,"profitVolatility":29.44733733297249,"avgReputation":0.8541606501933107,"avgDeliveryReputation":0.9286928663030944,"avgPricingReputation":0.932714056805878,"avgCooperationReputation":0.55,"avgServiceRate":0.9959660168817905,"avgPrice":5.37,"totalShortage":3.949205361566591,"defaults":0.0,"dumps":0.0},"series":{"rounds":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19],"price":[5.0,4.8,5.2,5.4,5.4,5.4,5.4,5.6,5.6,5.4,5.4,5.4,5.4,5.4,5.4,5.4,5.4,5.4,5.4,5.6],"quantity":[30,70,60,60,60,60,60,50,60,60,70,70,60,50,60,70,60,70,70,40],"profit":[104.66303302996343,17.45769189811476,58.98966705454606,59.16131235280211,54.93300459308852,44.1983871984544,30.82490652791269,98.94809383757065,60.055761367659414,89.75353419803278,40.99170917158297,20.86647798641745,51.32545000943564,91.32952016952562,78.21901923347005,43.46042268944434,92.78820032981739,38.882196281644276,1.42503118810058,99.06869775592422],"cumProfit":[104.66303302996343,122.12072492807819,181.11039198262426,240.27170433542636,295.2047089285149,339.4030961269693,370.22800265488195,469.1760964924526,529.231857860112,618.9853920581447,659.9771012297277,680.8435792161451,732.1690292255807,823.4985493951064,901.7175686285764,945.1779913180208,1037.966191647838,1076.8483879294824,1078.273419117583,1177.3421168735072],"reputation":[0.6299150422044762,0.6999362816533572,0.7524522112400179,0.7918391584300134,0.8213793688225101,0.8435345266168826,0.8601508949626618,0.8726131712219963,0.8819598784164974,0.8889699088123729,0.8942274316092798,0.8981705737069597,0.9011279302802199,0.903345947710165,0.9050094607826237,0.9062570955869677,0.9071928216902257,0.9078946162676693,0.908420962200752,0.908815721650564],"repDelivery":[0.6423300844089526,0.7317475633067144,0.7988106724800358,0.8491080043600269,0.8868310032700202,0.9151232524525151,0.9363424393393863,0.9522568295045397,0.9641926221284047,0.9731444665963036,0.9798583499472278,0.9848937624604208,0.9886703218453157,0.9915027413839868,0.9936270560379901,0.9952202920284925,0.9964152190213693,0.997311414266027,0.9979835606995202,0.9984876705246402],"repPricing":[0.6625000000000001,0.7468750000000001,0.81015625,0.8576171875,0.8932128906250001,0.9199096679687501,0.9399322509765625,0.9549491882324219,0.9662118911743165,0.9746589183807374,0.980994188785553,0.9857456415891648,0.9893092311918736,0.9919819233939052,0.9939864425454289,0.9954898319090717,0.9966173739318038,0.9974630304488529,0.9980972728366396,0.9985729546274797],"repCooperation":[0.55,0.55,0.55,0.55,0.55,0.55,0.55,0.55,0.55,0.55,0.55,0.55,0.55,0.55,0.55,0.55,0.55,0.55,0.55,0.55],"serviceRate":[0.91932033763581,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]}}],"roundsData":[{"round":0,"demandTrue":181.0,"demandObserved":184.0,"demandGap":3.0,"marketAvgPrice":5.2,"marketTotalSales":177.05079463843342,"fulfillmentRatio":0.9781811858476984,"shockComponent":0.0,"trendComponent":180.0,"seasonComponent":2.9552020666133956,"noiseComponent":-1.791162019133203,"transferVolume":0.0,"defaultCount":0,"dumpCount":1,"agentSpread":2.5999999999999996,"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=184;price=4.00;quantity=100","price":4.0,"quantity":100,"forecastDemand":184,"allocatedDemand":105.71884188949922,"realizedSales":105.71884188949922,"shortage":0.0,"profit":-30.47529168219699,"cumProfit":-30.47529168219699,"reputation":0.6125,"repDelivery":0.7375,"repPricing":0.48750000000000004,"repCooperation":0.48750000000000004,"reputationComponents":{"delivery":0.7375,"pricing":0.48750000000000004,"cooperation":0.48750000000000004},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=184;price=6.60;quantity=10","price":6.6,"quantity":10,"forecastDemand":184,"allocatedDemand":26.33195274893419,"realizedSales":26.33195274893419,"shortage":0.0,"profit":138.38541122885476,"cumProfit":138.38541122885476,"reputation":0.8,"repDelivery":0.8500000000000001,"repPricing":0.8500000000000001,"repCooperation":0.6000000000000001,"reputationComponents":{"delivery":0.8500000000000001,"pricing":0.8500000000000001,"cooperation":0.6000000000000001},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=184;price=5.00;quantity=30","price":5.0,"quantity":30,"forecastDemand":184,"allocatedDemand":48.94920536156659,"realizedSales":45.0,"shortage":3.949205361566591,"profit":104.66303302996343,"cumProfit":104.66303302996343,"reputation":0.6299150422044762,"repDelivery":0.6423300844089526,"repPricing":0.6625000000000001,"repCooperation":0.55,"reputationComponents":{"delivery":0.6423300844089526,"pricing":0.6625000000000001,"cooperation":0.55},"serviceRate":0.91932033763581,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0}]},{"round":1,"demandTrue":197.0,"demandObserved":195.0,"demandGap":-2.0,"marketAvgPrice":5.133333333333333,"marketTotalSales":197.0,"fulfillmentRatio":1.0,"shockComponent":0.0,"trendComponent":180.6,"seasonComponent":18.94984674310608,"noiseComponent":-2.3886960620916744,"transferVolume":0.0,"defaultCount":0,"dumpCount":1,"agentSpread":2.5999999999999996,"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=184;price=4.00;quantity=110","price":4.0,"quantity":110,"forecastDemand":184,"allocatedDemand":105.13863652012778,"realizedSales":105.13863652012778,"shortage":0.0,"profit":-94.11788582811673,"cumProfit":-124.59317751031372,"reputation":0.6087500000000001,"repDelivery":0.8031250000000001,"repPricing":0.36562500000000003,"repCooperation":0.48750000000000004,"reputationComponents":{"delivery":0.8031250000000001,"pricing":0.36562500000000003,"cooperation":0.48750000000000004},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=184;price=6.60;quantity=30","price":6.6,"quantity":30,"forecastDemand":184,"allocatedDemand":27.392789643750255,"realizedSales":27.392789643750255,"shortage":0.0,"profit":69.21608024041304,"cumProfit":207.60149146926778,"reputation":0.83,"repDelivery":0.8875000000000001,"repPricing":0.8875000000000001,"repCooperation":0.6000000000000001,"reputationComponents":{"delivery":0.8875000000000001,"pricing":0.8875000000000001,"cooperation":0.6000000000000001},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=184;price=4.80;quantity=70","price":4.8,"quantity":70,"forecastDemand":184,"allocatedDemand":64.46857383612196,"realizedSales":64.46857383612196,"shortage":0.0,"profit":17.45769189811476,"cumProfit":122.12072492807819,"reputation":0.6999362816533572,"repDelivery":0.7317475633067144,"repPricing":0.7468750000000001,"repCooperation":0.55,"reputationComponents":{"delivery":0.7317475633067144,"pricing":0.7468750000000001,"cooperation":0.55},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0}]},{"round":2,"demandTrue":198.0,"demandObserved":197.0,"demandGap":-1.0,"marketAvgPrice":5.3999999999999995,"marketTotalSales":198.0,"fulfillmentRatio":1.0,"shockComponent":0.0,"trendComponent":181.2,"seasonComponent":24.134117409591216,"noiseComponent":-7.585040560200625,"transferVolume":0.0,"defaultCount":0,"dumpCount":1,"agentSpread":3.0,"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=198;price=4.00;quantity=120","price":4.0,"quantity":120,"forecastDemand":198,"allocatedDemand":115.69642103454197,"realizedSales":115.69642103454197,"shortage":0.0,"profit":-116.18538190105347,"cumProfit":-240.7785594113672,"reputation":0.6059375,"repDelivery":0.8523437500000001,"repPricing":0.27421875,"repCooperation":0.48750000000000004,"reputationComponents":{"delivery":0.8523437500000001,"pricing":0.27421875,"cooperation":0.48750000000000004},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=193;price=7.00;quantity=30","price":7.0,"quantity":30,"forecastDemand":193,"allocatedDemand":23.72358499008229,"realizedSales":23.72358499008229,"shortage":0.0,"profit":53.94328264287367,"cumProfit":261.54477411214145,"reputation":0.8524999999999999,"repDelivery":0.915625,"repPricing":0.915625,"repCooperation":0.6000000000000001,"reputationComponents":{"delivery":0.915625,"pricing":0.915625,"cooperation":0.6000000000000001},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=200;price=5.20;quantity=60","price":5.2,"quantity":60,"forecastDemand":200,"allocatedDemand":58.57999397537574,"realizedSales":58.57999397537574,"shortage":0.0,"profit":58.98966705454606,"cumProfit":181.11039198262426,"reputation":0.7524522112400179,"repDelivery":0.7988106724800358,"repPricing":0.81015625,"repCooperation":0.55,"reputationComponents":{"delivery":0.7988106724800358,"pricing":0.81015625,"cooperation":0.55},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0}]},{"round":3,"demandTrue":202.0,"demandObserved":204.0,"demandGap":2.0,"marketAvgPrice":5.466666666666666,"marketTotalSales":202.0,"fulfillmentRatio":1.0,"shockComponent":0.0,"trendComponent":181.8,"seasonComponent":15.816042990667249,"noiseComponent":4.370153414813965,"transferVolume":0.0,"defaultCount":0,"dumpCount":1,"agentSpread":3.0,"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=198;price=4.00;quantity=120","price":4.0,"quantity":120,"forecastDemand":198,"allocatedDemand":120.11159685530706,"realizedSales":120.11159685530706,"shortage":0.0,"profit":-97.76656754058307,"cumProfit":-338.5451269519503,"reputation":0.603828125,"repDelivery":0.8892578125,"repPricing":0.20566406250000002,"repCooperation":0.48750000000000004,"reputationComponents":{"delivery":0.8892578125,"pricing":0.20566406250000002,"cooperation":0.48750000000000004},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=195;price=7.00;quantity=30","price":7.0,"quantity":30,"forecastDemand":195,"allocatedDemand":25.3884992085002,"realizedSales":25.3884992085002,"shortage":0.0,"profit":65.34884854702352,"cumProfit":326.893622659165,"reputation":0.869375,"repDelivery":0.93671875,"repPricing":0.93671875,"repCooperation":0.6000000000000001,"reputationComponents":{"delivery":0.93671875,"pricing":0.93671875,"cooperation":0.6000000000000001},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=200;price=5.40;quantity=60","price":5.4,"quantity":60,"forecastDemand":200,"allocatedDemand":56.49990393619274,"realizedSales":56.49990393619274,"shortage":0.0,"profit":59.16131235280211,"cumProfit":240.27170433542636,"reputation":0.7918391584300134,"repDelivery":0.8491080043600269,"repPricing":0.8576171875,"repCooperation":0.55,"reputationComponents":{"delivery":0.8491080043600269,"pricing":0.8576171875,"cooperation":0.55},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0}]},{"round":4,"demandTrue":193.0,"demandObserved":194.0,"demandGap":1.0,"marketAvgPrice":5.466666666666666,"marketTotalSales":193.0,"fulfillmentRatio":1.0,"shockComponent":0.0,"trendComponent":182.4,"seasonComponent":1.267042531464278,"noiseComponent":9.22472258889395,"transferVolume":0.0,"defaultCount":0,"dumpCount":1,"agentSpread":3.0,"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=205;price=4.00;quantity=120","price":4.0,"quantity":120,"forecastDemand":205,"allocatedDemand":112.8221781559743,"realizedSales":112.8221781559743,"shortage":0.0,"profit":-127.3579541010148,"cumProfit":-465.9030810529651,"reputation":0.60224609375,"repDelivery":0.916943359375,"repPricing":0.15424804687500002,"repCooperation":0.48750000000000004,"reputationComponents":{"delivery":0.916943359375,"pricing":0.15424804687500002,"cooperation":0.48750000000000004},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=202;price=7.00;quantity=20","price":7.0,"quantity":20,"forecastDemand":202,"allocatedDemand":24.397219834435887,"realizedSales":24.397219834435887,"shortage":0.0,"profit":98.14133297385027,"cumProfit":425.0349556330152,"reputation":0.88203125,"repDelivery":0.9525390625000001,"repPricing":0.9525390625000001,"repCooperation":0.6000000000000001,"reputationComponents":{"delivery":0.9525390625000001,"pricing":0.9525390625000001,"cooperation":0.6000000000000001},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=207;price=5.40;quantity=60","price":5.4,"quantity":60,"forecastDemand":207,"allocatedDemand":55.780602009589806,"realizedSales":55.780602009589806,"shortage":0.0,"profit":54.93300459308852,"cumProfit":295.2047089285149,"reputation":0.8213793688225101,"repDelivery":0.8868310032700202,"repPricing":0.8932128906250001,"repCooperation":0.55,"reputationComponents":{"delivery":0.8868310032700202,"pricing":0.8932128906250001,"cooperation":0.55},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0}]},{"round":5,"demandTrue":182.0,"demandObserved":183.0,"demandGap":1.0,"marketAvgPrice":5.466666666666666,"marketTotalSales":182.0,"fulfillmentRatio":1.0,"shockComponent":0.0,"trendComponent":183.0,"seasonComponent":-7.797644698516018,"noiseComponent":6.914512607298582,"transferVolume":0.0,"defaultCount":0,"dumpCount":1,"agentSpread":3.0,"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=198;price=4.00;quantity=120","price":4.0,"quantity":120,"forecastDemand":198,"allocatedDemand":105.00826975513327,"realizedSales":105.00826975513327,"shortage":0.0,"profit":-160.0132839318201,"cumProfit":-625.9163649847852,"reputation":0.6010595703125001,"repDelivery":0.9377075195312501,"repPricing":0.11568603515625,"repCooperation":0.48750000000000004,"reputationComponents":{"delivery":0.9377075195312501,"pricing":0.11568603515625,"cooperation":0.48750000000000004},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=197;price=7.00;quantity=30","price":7.0,"quantity":30,"forecastDemand":197,"allocatedDemand":23.098814459908667,"realizedSales":23.098814459908667,"shortage":0.0,"profit":49.46261322943039,"cumProfit":474.49756886244563,"reputation":0.8915234375,"repDelivery":0.9644042968750001,"repPricing":0.9644042968750001,"repCooperation":0.6000000000000001,"reputationComponents":{"delivery":0.9644042968750001,"pricing":0.9644042968750001,"cooperation":0.6000000000000001},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=200;price=5.40;quantity=60","price":5.4,"quantity":60,"forecastDemand":200,"allocatedDemand":53.89291578495807,"realizedSales":53.89291578495807,"shortage":0.0,"profit":44.1983871984544,"cumProfit":339.4030961269693,"reputation":0.8435345266168826,"repDelivery":0.9151232524525151,"repPricing":0.9199096679687501,"repCooperation":0.55,"reputationComponents":{"delivery":0.9151232524525151,"pricing":0.9199096679687501,"cooperation":0.55},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0}]},{"round":6,"demandTrue":171.0,"demandObserved":175.0,"demandGap":4.0,"marketAvgPrice":5.466666666666666,"marketTotalSales":171.0,"fulfillmentRatio":1.0,"shockComponent":0.0,"trendComponent":183.6,"seasonComponent":-4.073969091654618,"noiseComponent":-8.55090700389924,"transferVolume":0.0,"defaultCount":0,"dumpCount":1,"agentSpread":3.0,"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=187;price=4.00;quantity=100","price":4.0,"quantity":100,"forecastDemand":187,"allocatedDemand":97.68010026831739,"realizedSales":97.68010026831739,"shortage":0.0,"profit":-62.63335735410168,"cumProfit":-688.5497223388869,"reputation":0.600169677734375,"repDelivery":0.9532806396484376,"repPricing":0.08676452636718751,"repCooperation":0.48750000000000004,"reputationComponents":{"delivery":0.9532806396484376,"pricing":0.08676452636718751,"cooperation":0.48750000000000004},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=188;price=7.00;quantity=20","price":7.0,"quantity":20,"forecastDemand":188,"allocatedDemand":21.763940547387847,"realizedSales":21.763940547387847,"shortage":0.0,"profit":79.54776325669906,"cumProfit":554.0453321191446,"reputation":0.8986425781249999,"repDelivery":0.97330322265625,"repPricing":0.97330322265625,"repCooperation":0.6000000000000001,"reputationComponents":{"delivery":0.97330322265625,"pricing":0.97330322265625,"cooperation":0.6000000000000001},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=188;price=5.40;quantity=60","price":5.4,"quantity":60,"forecastDemand":188,"allocatedDemand":51.55595918429478,"realizedSales":51.55595918429478,"shortage":0.0,"profit":30.82490652791269,"cumProfit":370.22800265488195,"reputation":0.8601508949626618,"repDelivery":0.9363424393393863,"repPricing":0.9399322509765625,"repCooperation":0.55,"reputationComponents":{"delivery":0.9363424393393863,"pricing":0.9399322509765625,"cooperation":0.55},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0}]},{"round":7,"demandTrue":194.0,"demandObserved":196.0,"demandGap":2.0,"marketAvgPrice":5.533333333333334,"marketTotalSales":194.0,"fulfillmentRatio":1.0,"shockComponent":0.0,"trendComponent":184.2,"seasonComponent":9.809933289465183,"noiseComponent":-0.3032142304916152,"transferVolume":0.0,"defaultCount":0,"dumpCount":1,"agentSpread":3.0,"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=177;price=4.00;quantity=100","price":4.0,"quantity":100,"forecastDemand":177,"allocatedDemand":114.55212521898345,"realizedSales":114.55212521898345,"shortage":0.0,"profit":7.6940992730155875,"cumProfit":-680.8556230658713,"reputation":0.5995022583007813,"repDelivery":0.9649604797363281,"repPricing":0.06507339477539063,"repCooperation":0.48750000000000004,"reputationComponents":{"delivery":0.9649604797363281,"pricing":0.06507339477539063,"cooperation":0.48750000000000004},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=178;price=7.00;quantity=30","price":7.0,"quantity":30,"forecastDemand":178,"allocatedDemand":25.769649976062126,"realizedSales":25.769649976062126,"shortage":0.0,"profit":68.30773696993265,"cumProfit":622.3530690890773,"reputation":0.90398193359375,"repDelivery":0.9799774169921875,"repPricing":0.9799774169921875,"repCooperation":0.6000000000000001,"reputationComponents":{"delivery":0.9799774169921875,"pricing":0.9799774169921875,"cooperation":0.6000000000000001},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=178;price=5.60;quantity=50","price":5.6,"quantity":50,"forecastDemand":178,"allocatedDemand":53.67822480495444,"realizedSales":53.67822480495444,"shortage":0.0,"profit":98.94809383757065,"cumProfit":469.1760964924526,"reputation":0.8726131712219963,"repDelivery":0.9522568295045397,"repPricing":0.9549491882324219,"repCooperation":0.55,"reputationComponents":{"delivery":0.9522568295045397,"pricing":0.9549491882324219,"cooperation":0.55},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0}]},{"round":8,"demandTrue":196.0,"demandObserved":187.0,"demandGap":-9.0,"marketAvgPrice":5.533333333333334,"marketTotalSales":196.0,"fulfillmentRatio":1.0,"shockComponent":0.0,"trendComponent":184.8,"seasonComponent":23.265094512552736,"noiseComponent":-11.975998266660184,"transferVolume":0.0,"defaultCount":0,"dumpCount":1,"agentSpread":3.0,"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=189;price=4.00;quantity=120","price":4.0,"quantity":120,"forecastDemand":189,"allocatedDemand":115.11663473996941,"realizedSales":115.11663473996941,"shortage":0.0,"profit":-116.59072496556522,"cumProfit":-797.4463480314365,"reputation":0.599001693725586,"repDelivery":0.9737203598022461,"repPricing":0.04880504608154297,"repCooperation":0.48750000000000004,"reputationComponents":{"delivery":0.9737203598022461,"pricing":0.04880504608154297,"cooperation":0.48750000000000004},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=189;price=7.00;quantity=20","price":7.0,"quantity":20,"forecastDemand":189,"allocatedDemand":26.083982793573725,"realizedSales":26.083982793573725,"shortage":0.0,"profit":110.35676347554593,"cumProfit":732.7098325646232,"reputation":0.9079864501953125,"repDelivery":0.9849830627441407,"repPricing":0.9849830627441407,"repCooperation":0.6000000000000001,"reputationComponents":{"delivery":0.9849830627441407,"pricing":0.9849830627441407,"cooperation":0.6000000000000001},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=191;price=5.60;quantity=60","price":5.6,"quantity":60,"forecastDemand":191,"allocatedDemand":54.79938246645686,"realizedSales":54.79938246645686,"shortage":0.0,"profit":60.055761367659414,"cumProfit":529.231857860112,"reputation":0.8819598784164974,"repDelivery":0.9641926221284047,"repPricing":0.9662118911743165,"repCooperation":0.55,"reputationComponents":{"delivery":0.9641926221284047,"pricing":0.9662118911743165,"cooperation":0.55},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0}]},{"round":9,"demandTrue":200.0,"demandObserved":198.0,"demandGap":-2.0,"marketAvgPrice":5.466666666666666,"marketTotalSales":199.99999999999997,"fulfillmentRatio":0.9999999999999999,"shockComponent":0.0,"trendComponent":185.4,"seasonComponent":25.721284691251743,"noiseComponent":-11.616506633645592,"transferVolume":0.0,"defaultCount":0,"dumpCount":1,"agentSpread":3.0,"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=187;price=4.00;quantity=120","price":4.0,"quantity":120,"forecastDemand":187,"allocatedDemand":112.2401535949338,"realizedSales":112.2401535949338,"shortage":0.0,"profit":-128.89931244504353,"cumProfit":-926.34566047648,"reputation":0.5986262702941896,"repDelivery":0.9802902698516847,"repPricing":0.03660378456115723,"repCooperation":0.48750000000000004,"reputationComponents":{"delivery":0.9802902698516847,"pricing":0.03660378456115723,"cooperation":0.48750000000000004},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=187;price=7.00;quantity=30","price":7.0,"quantity":30,"forecastDemand":187,"allocatedDemand":25.570069619656223,"realizedSales":25.570069619656223,"shortage":0.0,"profit":67.3448817144617,"cumProfit":800.0547142790849,"reputation":0.9109898376464843,"repDelivery":0.9887372970581055,"repPricing":0.9887372970581055,"repCooperation":0.6000000000000001,"reputationComponents":{"delivery":0.9887372970581055,"pricing":0.9887372970581055,"cooperation":0.6000000000000001},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=188;price=5.40;quantity=60","price":5.4,"quantity":60,"forecastDemand":188,"allocatedDemand":62.189776785409954,"realizedSales":62.189776785409954,"shortage":0.0,"profit":89.75353419803278,"cumProfit":618.9853920581447,"reputation":0.8889699088123729,"repDelivery":0.9731444665963036,"repPricing":0.9746589183807374,"repCooperation":0.55,"reputationComponents":{"delivery":0.9731444665963036,"pricing":0.9746589183807374,"cooperation":0.55},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0}]},{"round":10,"demandTrue":198.0,"demandObserved":198.0,"demandGap":0.0,"marketAvgPrice":5.466666666666666,"marketTotalSales":197.99999999999997,"fulfillmentRatio":0.9999999999999999,"shockComponent":0.0,"trendComponent":186.0,"seasonComponent":14.605762958259467,"noiseComponent":-3.0893060423134315,"transferVolume":0.0,"defaultCount":0,"dumpCount":1,"agentSpread":3.0,"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=197;price=4.00;quantity=120","price":4.0,"quantity":120,"forecastDemand":197,"allocatedDemand":110.7536519645167,"realizedSales":110.7536519645167,"shortage":0.0,"profit":-135.65171011539618,"cumProfit":-1061.9973705918762,"reputation":0.5983447027206421,"repDelivery":0.9852177023887635,"repPricing":0.027452838420867924,"repCooperation":0.48750000000000004,"reputationComponents":{"delivery":0.9852177023887635,"pricing":0.027452838420867924,"cooperation":0.48750000000000004},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=195;price=7.00;quantity=30","price":7.0,"quantity":30,"forecastDemand":195,"allocatedDemand":25.333931522083045,"realizedSales":25.333931522083045,"shortage":0.0,"profit":65.33576503437247,"cumProfit":865.3904793134574,"reputation":0.9132423782348632,"repDelivery":0.9915529727935791,"repPricing":0.9915529727935791,"repCooperation":0.6000000000000001,"reputationComponents":{"delivery":0.9915529727935791,"pricing":0.9915529727935791,"cooperation":0.6000000000000001},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=199;price=5.40;quantity=70","price":5.4,"quantity":70,"forecastDemand":199,"allocatedDemand":61.91241651340023,"realizedSales":61.91241651340023,"shortage":0.0,"profit":40.99170917158297,"cumProfit":659.9771012297277,"reputation":0.8942274316092798,"repDelivery":0.9798583499472278,"repPricing":0.980994188785553,"repCooperation":0.55,"reputationComponents":{"delivery":0.9798583499472278,"pricing":0.980994188785553,"cooperation":0.55},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0}]},{"round":11,"demandTrue":186.0,"demandObserved":183.0,"demandGap":-3.0,"marketAvgPrice":5.466666666666666,"marketTotalSales":186.0,"fulfillmentRatio":1.0,"shockComponent":0.0,"trendComponent":186.6,"seasonComponent":-2.6877897700276288,"noiseComponent":2.25663656990527,"transferVolume":0.0,"defaultCount":0,"dumpCount":1,"agentSpread":3.0,"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=200;price=4.00;quantity=120","price":4.0,"quantity":120,"forecastDemand":200,"allocatedDemand":103.78444143557863,"realizedSales":103.78444143557863,"shortage":0.0,"profit":-165.0916120403907,"cumProfit":-1227.0889826322668,"reputation":0.5981335270404816,"repDelivery":0.9889132767915726,"repPricing":0.02058962881565094,"repCooperation":0.48750000000000004,"reputationComponents":{"delivery":0.9889132767915726,"pricing":0.02058962881565094,"cooperation":0.48750000000000004},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=197;price=7.00;quantity=30","price":7.0,"quantity":30,"forecastDemand":197,"allocatedDemand":23.81208631847686,"realizedSales":23.81208631847686,"shortage":0.0,"profit":54.239656710292536,"cumProfit":919.6301360237499,"reputation":0.9149317836761475,"repDelivery":0.9936647295951844,"repPricing":0.9936647295951844,"repCooperation":0.6000000000000001,"reputationComponents":{"delivery":0.9936647295951844,"pricing":0.9936647295951844,"cooperation":0.6000000000000001},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=202;price=5.40;quantity=70","price":5.4,"quantity":70,"forecastDemand":202,"allocatedDemand":58.40347224594451,"realizedSales":58.40347224594451,"shortage":0.0,"profit":20.86647798641745,"cumProfit":680.8435792161451,"reputation":0.8981705737069597,"repDelivery":0.9848937624604208,"repPricing":0.9857456415891648,"repCooperation":0.55,"reputationComponents":{"delivery":0.9848937624604208,"pricing":0.9857456415891648,"cooperation":0.55},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0}]},{"round":12,"demandTrue":176.0,"demandObserved":178.0,"demandGap":2.0,"marketAvgPrice":5.466666666666666,"marketTotalSales":176.0,"fulfillmentRatio":1.0,"shockComponent":0.0,"trendComponent":187.2,"seasonComponent":-14.324184120126024,"noiseComponent":3.1764085009335394,"transferVolume":0.0,"defaultCount":0,"dumpCount":1,"agentSpread":3.0,"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=187;price=4.00;quantity=100","price":4.0,"quantity":100,"forecastDemand":187,"allocatedDemand":98.02215925311293,"realizedSales":98.02215925311293,"shortage":0.0,"profit":-61.35534942727414,"cumProfit":-1288.444332059541,"reputation":0.5979751452803612,"repDelivery":0.9916849575936795,"repPricing":0.015442221611738206,"repCooperation":0.48750000000000004,"reputationComponents":{"delivery":0.9916849575936795,"pricing":0.015442221611738206,"cooperation":0.48750000000000004},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=188;price=7.00;quantity=20","price":7.0,"quantity":20,"forecastDemand":188,"allocatedDemand":22.541351703229843,"realizedSales":22.541351703229843,"shortage":0.0,"profit":84.89780448450841,"cumProfit":1004.5279405082583,"reputation":0.9161988377571106,"repDelivery":0.9952485471963883,"repPricing":0.9952485471963883,"repCooperation":0.6000000000000001,"reputationComponents":{"delivery":0.9952485471963883,"pricing":0.9952485471963883,"cooperation":0.6000000000000001},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=188;price=5.40;quantity=60","price":5.4,"quantity":60,"forecastDemand":188,"allocatedDemand":55.436489043657225,"realizedSales":55.436489043657225,"shortage":0.0,"profit":51.32545000943564,"cumProfit":732.1690292255807,"reputation":0.9011279302802199,"repDelivery":0.9886703218453157,"repPricing":0.9893092311918736,"repCooperation":0.55,"reputationComponents":{"delivery":0.9886703218453157,"pricing":0.9893092311918736,"cooperation":0.55},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0}]},{"round":13,"demandTrue":172.0,"demandObserved":181.0,"demandGap":9.0,"marketAvgPrice":5.466666666666666,"marketTotalSales":172.0,"fulfillmentRatio":1.0,"shockComponent":0.0,"trendComponent":187.8,"seasonComponent":-12.886974542847518,"noiseComponent":-3.1985776073049035,"transferVolume":0.0,"defaultCount":0,"dumpCount":1,"agentSpread":3.0,"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=181;price=4.00;quantity=100","price":4.0,"quantity":100,"forecastDemand":181,"allocatedDemand":95.66054012850961,"realizedSales":95.66054012850961,"shortage":0.0,"profit":-70.53750504808589,"cumProfit":-1358.981837107627,"reputation":0.597856358960271,"repDelivery":0.9937637181952597,"repPricing":0.011581666208803654,"repCooperation":0.48750000000000004,"reputationComponents":{"delivery":0.9937637181952597,"pricing":0.011581666208803654,"cooperation":0.48750000000000004},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=181;price=7.00;quantity=30","price":7.0,"quantity":30,"forecastDemand":181,"allocatedDemand":22.035930276750218,"realizedSales":22.035930276750218,"shortage":0.0,"profit":41.70992273555317,"cumProfit":1046.2378632438115,"reputation":0.9171491283178329,"repDelivery":0.9964364103972913,"repPricing":0.9964364103972913,"repCooperation":0.6000000000000001,"reputationComponents":{"delivery":0.9964364103972913,"pricing":0.9964364103972913,"cooperation":0.6000000000000001},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=182;price=5.40;quantity=50","price":5.4,"quantity":50,"forecastDemand":182,"allocatedDemand":54.303529594740176,"realizedSales":54.303529594740176,"shortage":0.0,"profit":91.32952016952562,"cumProfit":823.4985493951064,"reputation":0.903345947710165,"repDelivery":0.9915027413839868,"repPricing":0.9919819233939052,"repCooperation":0.55,"reputationComponents":{"delivery":0.9915027413839868,"pricing":0.9919819233939052,"cooperation":0.55},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0}]},{"round":14,"demandTrue":190.0,"demandObserved":196.0,"demandGap":6.0,"marketAvgPrice":5.466666666666666,"marketTotalSales":190.00000000000003,"fulfillmentRatio":1.0000000000000002,"shockComponent":0.0,"trendComponent":188.4,"seasonComponent":-0.9043675636014175,"noiseComponent":2.4569055677849825,"transferVolume":0.0,"defaultCount":0,"dumpCount":1,"agentSpread":3.0,"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=179;price=4.00;quantity=100","price":4.0,"quantity":100,"forecastDemand":179,"allocatedDemand":105.56057928124251,"realizedSales":105.56057928124251,"shortage":0.0,"profit":-29.377852395452358,"cumProfit":-1388.3596895030794,"reputation":0.5977672692202032,"repDelivery":0.9953227886464447,"repPricing":0.008686249656602741,"repCooperation":0.48750000000000004,"reputationComponents":{"delivery":0.9953227886464447,"pricing":0.008686249656602741,"cooperation":0.48750000000000004},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=180;price=7.00;quantity=20","price":7.0,"quantity":20,"forecastDemand":180,"allocatedDemand":24.347674029063224,"realizedSales":24.347674029063224,"shortage":0.0,"profit":97.65260494110645,"cumProfit":1143.8904681849178,"reputation":0.9178618462383746,"repDelivery":0.9973273077979684,"repPricing":0.9973273077979684,"repCooperation":0.6000000000000001,"reputationComponents":{"delivery":0.9973273077979684,"pricing":0.9973273077979684,"cooperation":0.6000000000000001},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=180;price=5.40;quantity=60","price":5.4,"quantity":60,"forecastDemand":180,"allocatedDemand":60.09174668969428,"realizedSales":60.09174668969428,"shortage":0.0,"profit":78.21901923347005,"cumProfit":901.7175686285764,"reputation":0.9050094607826237,"repDelivery":0.9936270560379901,"repPricing":0.9939864425454289,"repCooperation":0.55,"reputationComponents":{"delivery":0.9936270560379901,"pricing":0.9939864425454289,"cooperation":0.55},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0}]},{"round":15,"demandTrue":197.0,"demandObserved":193.0,"demandGap":-4.0,"marketAvgPrice":5.466666666666666,"marketTotalSales":197.00000000000003,"fulfillmentRatio":1.0000000000000002,"shockComponent":0.0,"trendComponent":189.0,"seasonComponent":11.117764617811122,"noiseComponent":-3.2367228958766647,"transferVolume":0.0,"defaultCount":0,"dumpCount":1,"agentSpread":3.0,"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=191;price=4.00;quantity=120","price":4.0,"quantity":120,"forecastDemand":191,"allocatedDemand":109.363341861893,"realizedSales":109.363341861893,"shortage":0.0,"profit":-141.2243001867345,"cumProfit":-1529.583989689814,"reputation":0.5977004519151524,"repDelivery":0.9964920914848335,"repPricing":0.006514687242452056,"repCooperation":0.48750000000000004,"reputationComponents":{"delivery":0.9964920914848335,"pricing":0.006514687242452056,"cooperation":0.48750000000000004},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=190;price=7.00;quantity=30","price":7.0,"quantity":30,"forecastDemand":190,"allocatedDemand":25.24906796410305,"realizedSales":25.24906796410305,"shortage":0.0,"profit":64.62448820711917,"cumProfit":1208.514956392037,"reputation":0.918396384678781,"repDelivery":0.9979954808484763,"repPricing":0.9979954808484763,"repCooperation":0.6000000000000001,"reputationComponents":{"delivery":0.9979954808484763,"pricing":0.9979954808484763,"cooperation":0.6000000000000001},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=192;price=5.40;quantity=70","price":5.4,"quantity":70,"forecastDemand":192,"allocatedDemand":62.38759017400396,"realizedSales":62.38759017400396,"shortage":0.0,"profit":43.46042268944434,"cumProfit":945.1779913180208,"reputation":0.9062570955869677,"repDelivery":0.9952202920284925,"repPricing":0.9954898319090717,"repCooperation":0.55,"reputationComponents":{"delivery":0.9952202920284925,"pricing":0.9954898319090717,"cooperation":0.55},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0}]},{"round":16,"demandTrue":198.0,"demandObserved":197.0,"demandGap":-1.0,"marketAvgPrice":5.466666666666666,"marketTotalSales":198.0,"fulfillmentRatio":1.0,"shockComponent":0.0,"trendComponent":189.6,"seasonComponent":12.671822360591289,"noiseComponent":-3.864852057286676,"transferVolume":0.0,"defaultCount":0,"dumpCount":1,"agentSpread":3.0,"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=194;price=4.00;quantity=110","price":4.0,"quantity":110,"forecastDemand":194,"allocatedDemand":109.85340387028705,"realizedSales":109.85340387028705,"shortage":0.0,"profit":-74.11479221241721,"cumProfit":-1603.698781902231,"reputation":0.5976503389363643,"repDelivery":0.9973690686136252,"repPricing":0.004886015431839042,"repCooperation":0.48750000000000004,"reputationComponents":{"delivery":0.9973690686136252,"pricing":0.004886015431839042,"cooperation":0.48750000000000004},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=192;price=7.00;quantity=20","price":7.0,"quantity":20,"forecastDemand":192,"allocatedDemand":25.380518820987646,"realizedSales":25.380518820987646,"shortage":0.0,"profit":105.3280156710145,"cumProfit":1313.8429720630515,"reputation":0.9187972885090858,"repDelivery":0.9984966106363573,"repPricing":0.9984966106363573,"repCooperation":0.6000000000000001,"reputationComponents":{"delivery":0.9984966106363573,"pricing":0.9984966106363573,"cooperation":0.6000000000000001},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=195;price=5.40;quantity=60","price":5.4,"quantity":60,"forecastDemand":195,"allocatedDemand":62.766077308725286,"realizedSales":62.766077308725286,"shortage":0.0,"profit":92.78820032981739,"cumProfit":1037.966191647838,"reputation":0.9071928216902257,"repDelivery":0.9964152190213693,"repPricing":0.9966173739318038,"repCooperation":0.55,"reputationComponents":{"delivery":0.9964152190213693,"pricing":0.9966173739318038,"cooperation":0.55},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0}]},{"round":17,"demandTrue":194.0,"demandObserved":195.0,"demandGap":1.0,"marketAvgPrice":5.466666666666666,"marketTotalSales":194.0,"fulfillmentRatio":1.0,"shockComponent":0.0,"trendComponent":190.2,"seasonComponent":1.2244923137976373,"noiseComponent":2.685367789446038,"transferVolume":0.0,"defaultCount":0,"dumpCount":1,"agentSpread":3.0,"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=199;price=4.00;quantity=120","price":4.0,"quantity":120,"forecastDemand":199,"allocatedDemand":107.58630704986142,"realizedSales":107.58630704986142,"shortage":0.0,"profit":-148.88296035137245,"cumProfit":-1752.5817422536036,"reputation":0.5976127542022733,"repDelivery":0.9980268014602189,"repPricing":0.0036645115738792814,"repCooperation":0.48750000000000004,"reputationComponents":{"delivery":0.9980268014602189,"pricing":0.0036645115738792814,"cooperation":0.48750000000000004},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=196;price=7.00;quantity=30","price":7.0,"quantity":30,"forecastDemand":196,"allocatedDemand":24.870185615469236,"realizedSales":24.870185615469236,"shortage":0.0,"profit":62.28930575157423,"cumProfit":1376.1322778146257,"reputation":0.9190979663818143,"repDelivery":0.998872457977268,"repPricing":0.998872457977268,"repCooperation":0.6000000000000001,"reputationComponents":{"delivery":0.998872457977268,"pricing":0.998872457977268,"cooperation":0.6000000000000001},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=200;price=5.40;quantity=70","price":5.4,"quantity":70,"forecastDemand":200,"allocatedDemand":61.54350733466936,"realizedSales":61.54350733466936,"shortage":0.0,"profit":38.882196281644276,"cumProfit":1076.8483879294824,"reputation":0.9078946162676693,"repDelivery":0.997311414266027,"repPricing":0.9974630304488529,"repCooperation":0.55,"reputationComponents":{"delivery":0.997311414266027,"pricing":0.9974630304488529,"cooperation":0.55},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0}]},{"round":18,"demandTrue":173.0,"demandObserved":168.0,"demandGap":-5.0,"marketAvgPrice":5.466666666666666,"marketTotalSales":173.0,"fulfillmentRatio":1.0,"shockComponent":0.0,"trendComponent":190.8,"seasonComponent":-15.816042990667235,"noiseComponent":-1.9230687613744406,"transferVolume":0.0,"defaultCount":0,"dumpCount":1,"agentSpread":3.0,"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=197;price=4.00;quantity=110","price":4.0,"quantity":110,"forecastDemand":197,"allocatedDemand":95.90836767857722,"realizedSales":95.90836767857722,"shortage":0.0,"profit":-132.22527014300033,"cumProfit":-1884.807012396604,"reputation":0.5975845656517049,"repDelivery":0.9985201010951642,"repPricing":0.002748383680409461,"repCooperation":0.48750000000000004,"reputationComponents":{"delivery":0.9985201010951642,"pricing":0.002748383680409461,"cooperation":0.48750000000000004},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=195;price=7.00;quantity=30","price":7.0,"quantity":30,"forecastDemand":195,"allocatedDemand":22.179656323219003,"realizedSales":22.179656323219003,"shortage":0.0,"profit":42.80268367477946,"cumProfit":1418.9349614894052,"reputation":0.9193234747863607,"repDelivery":0.999154343482951,"repPricing":0.999154343482951,"repCooperation":0.6000000000000001,"reputationComponents":{"delivery":0.999154343482951,"pricing":0.999154343482951,"cooperation":0.6000000000000001},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=199;price=5.40;quantity=70","price":5.4,"quantity":70,"forecastDemand":199,"allocatedDemand":54.911975998203786,"realizedSales":54.911975998203786,"shortage":0.0,"profit":1.42503118810058,"cumProfit":1078.273419117583,"reputation":0.908420962200752,"repDelivery":0.9979835606995202,"repPricing":0.9980972728366396,"repCooperation":0.55,"reputationComponents":{"delivery":0.9979835606995202,"pricing":0.9980972728366396,"cooperation":0.55},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0}]},{"round":19,"demandTrue":160.0,"demandObserved":166.0,"demandGap":6.0,"marketAvgPrice":5.533333333333334,"marketTotalSales":160.0,"fulfillmentRatio":1.0,"shockComponent":0.0,"trendComponent":191.4,"seasonComponent":-26.625652254853144,"noiseComponent":-4.509513113084269,"transferVolume":0.0,"defaultCount":0,"dumpCount":1,"agentSpread":3.0,"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=175;price=4.00;quantity=90","price":4.0,"quantity":90,"forecastDemand":175,"allocatedDemand":92.51718863336215,"realizedSales":92.51718863336215,"shortage":0.0,"profit":-24.354187672446006,"cumProfit":-1909.16120006905,"reputation":0.5975634242387787,"repDelivery":0.9988900758213731,"repPricing":0.0020612877603070957,"repCooperation":0.48750000000000004,"reputationComponents":{"delivery":0.9988900758213731,"pricing":0.0020612877603070957,"cooperation":0.48750000000000004},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=177;price=7.00;quantity=20","price":7.0,"quantity":20,"forecastDemand":177,"allocatedDemand":21.40193077910038,"realizedSales":21.40193077910038,"shortage":0.0,"profit":76.79538778452624,"cumProfit":1495.7303492739313,"reputation":0.9194926060897706,"repDelivery":0.9993657576122132,"repPricing":0.9993657576122132,"repCooperation":0.6000000000000001,"reputationComponents":{"delivery":0.9993657576122132,"pricing":0.9993657576122132,"cooperation":0.6000000000000001},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=176;price=5.60;quantity=40","price":5.6,"quantity":40,"forecastDemand":176,"allocatedDemand":46.08088058753747,"realizedSales":46.08088058753747,"shortage":0.0,"profit":99.06869775592422,"cumProfit":1177.3421168735072,"reputation":0.908815721650564,"repDelivery":0.9984876705246402,"repPricing":0.9985729546274797,"repCooperation":0.55,"reputationComponents":{"delivery":0.9984876705246402,"pricing":0.9985729546274797,"cooperation":0.55},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"dumpFlag":0,"defaultFlag":0}]}],"events":[{"round":0,"headline":"Price aggression escalated","details":"Shock +0.0, defaults 0, dumps 1, transfer 0.0","tags":["dump"],"score":8.0},{"round":1,"headline":"Price aggression escalated","details":"Shock +0.0, defaults 0, dumps 1, transfer 0.0","tags":["dump"],"score":8.0},{"round":2,"headline":"Price aggression escalated","details":"Shock +0.0, defaults 0, dumps 1, transfer 0.0","tags":["dump"],"score":8.0},{"round":3,"headline":"Price aggression escalated","details":"Shock +0.0, defaults 0, dumps 1, transfer 0.0","tags":["dump"],"score":8.0},{"round":4,"headline":"Price aggression escalated","details":"Shock +0.0, defaults 0, dumps 1, transfer 0.0","tags":["dump"],"score":8.0},{"round":5,"headline":"Price aggression escalated","details":"Shock +0.0, defaults 0, dumps 1, transfer 0.0","tags":["dump"],"score":8.0},{"round":6,"headline":"Price aggression escalated","details":"Shock +0.0, defaults 0, dumps 1, transfer 0.0","tags":["dump"],"score":8.0},{"round":7,"headline":"Price aggression escalated","details":"Shock +0.0, defaults 0, dumps 1, transfer 0.0","tags":["dump"],"score":8.0},{"round":8,"headline":"Price aggression escalated","details":"Shock +0.0, defaults 0, dumps 1, transfer 0.0","tags":["dump"],"score":8.0},{"round":9,"headline":"Price aggression escalated","details":"Shock +0.0, defaults 0, dumps 1, transfer 0.0","tags":["dump"],"score":8.0},{"round":10,"headline":"Price aggression escalated","details":"Shock +0.0, defaults 0, dumps 1, transfer 0.0","tags":["dump"],"score":8.0},{"round":11,"headline":"Price aggression escalated","details":"Shock +0.0, defaults 0, dumps 1, transfer 0.0","tags":["dump"],"score":8.0},{"round":12,"headline":"Price aggression escalated","details":"Shock +0.0, defaults 0, dumps 1, transfer 0.0","tags":["dump"],"score":8.0},{"round":13,"headline":"Price aggression escalated","details":"Shock +0.0, defaults 0, dumps 1, transfer 0.0","tags":["dump"],"score":8.0},{"round":14,"headline":"Price aggression escalated","details":"Shock +0.0, defaults 0, dumps 1, transfer 0.0","tags":["dump"],"score":8.0},{"round":15,"headline":"Price aggression escalated","details":"Shock +0.0, defaults 0, dumps 1, transfer 0.0","tags":["dump"],"score":8.0},{"round":16,"headline":"Price aggression escalated","details":"Shock +0.0, defaults 0, dumps 1, transfer 0.0","tags":["dump"],"score":8.0},{"round":17,"headline":"Price aggression escalated","details":"Shock +0.0, defaults 0, dumps 1, transfer 0.0","tags":["dump"],"score":8.0},{"round":18,"headline":"Price aggression escalated","details":"Shock +0.0, defaults 0, dumps 1, transfer 0.0","tags":["dump"],"score":8.0},{"round":19,"headline":"Price aggression escalated","details":"Shock +0.0, defaults 0, dumps 1, transfer 0.0","tags":["dump"],"score":8.0}]}</script>
+  <script>
+    let data = JSON.parse(document.getElementById("dashboard-data").textContent);
+    const toggles = { shocks: true, defaults: true, dumps: true, transfers: true };
+    const initialControls = data.controls || { shockScale: 0, demandBias: 0 };
+    const state = {
+      roundIndex: 0,
+      metric: "cumProfit",
+      agent: "all",
+      shockScale: Number(initialControls.shockScale || 0),
+      demandBias: Number(initialControls.demandBias || 0),
+      chartView: "market",
+    };
+    let agentMeta = Object.fromEntries(data.agents.map((agent) => [agent.name, agent]));
+
+    const controls = {
+      roundSlider: document.getElementById("round-slider"),
+      roundSliderValue: document.getElementById("round-slider-value"),
+      metricSelect: document.getElementById("metric-select"),
+      metricSelectValue: document.getElementById("metric-select-value"),
+      agentSelect: document.getElementById("agent-select"),
+      agentSelectValue: document.getElementById("agent-select-value"),
+      shockScale: document.getElementById("shock-scale"),
+      shockScaleValue: document.getElementById("shock-scale-value"),
+      demandBias: document.getElementById("demand-bias"),
+      demandBiasValue: document.getElementById("demand-bias-value"),
+      chartPanelTitle: document.getElementById("chart-panel-title"),
+      chartPanelLegend: document.getElementById("chart-panel-legend"),
+      chartViewButtons: Array.from(document.querySelectorAll("[data-chart-view]")),
+      marketPane: document.getElementById("market-pane"),
+      agentPane: document.getElementById("agent-pane"),
+      marketChart: document.getElementById("market-chart"),
+      marketReadout: document.getElementById("market-readout"),
+      agentChart: document.getElementById("agent-chart"),
+      agentReadout: document.getElementById("agent-readout"),
+      eventList: document.getElementById("event-list"),
+      eventPanel: document.getElementById("event-panel"),
+      controlPanel: document.getElementById("control-panel"),
+      mainColumn: document.getElementById("main-column"),
+      sideColumn: document.getElementById("side-column"),
+      heroGrid: document.getElementById("hero-grid"),
+      agentGrid: document.getElementById("agent-grid"),
+      roundAgentLog: document.getElementById("round-agent-log"),
+      controlStream: document.getElementById("control-stream"),
+      focusPanel: document.getElementById("focus-panel"),
+      footerBar: document.getElementById("footer-bar"),
+      runtimeForm: document.getElementById("runtime-form"),
+      runtimeSeed: document.getElementById("runtime-seed"),
+      runtimeRounds: document.getElementById("runtime-rounds"),
+      runtimeAgentMode: document.getElementById("runtime-agent-mode"),
+      runtimeRun: document.getElementById("runtime-run"),
+      runtimeJsonLink: document.getElementById("runtime-json-link"),
+      runtimeStatus: document.getElementById("runtime-status"),
+    };
+
+    const runtime = {
+      active: document.body.classList.contains("web-runtime-active"),
+      eventSource: null,
+      queue: [],
+      timer: 0,
+      donePending: false,
+      delayMs: 140,
+      targetRounds: Number(controls.runtimeRounds ? controls.runtimeRounds.value : data.meta.rounds) || data.meta.rounds,
+      logLines: [],
+      currentOptions: {
+        seed: controls.runtimeSeed ? controls.runtimeSeed.value : String(data.meta.seed),
+        rounds: controls.runtimeRounds ? controls.runtimeRounds.value : String(data.meta.rounds),
+        agent_mode: controls.runtimeAgentMode ? controls.runtimeAgentMode.value : String(data.meta.strategy),
+        shock_scale: Number(initialControls.shockScale || 0),
+        demand_bias: Number(initialControls.demandBias || 0),
+      },
+    };
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll("\"", "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function formatNumber(value, digits = 1) {
+      return Number(value).toLocaleString(undefined, {
+        maximumFractionDigits: digits,
+        minimumFractionDigits: digits,
+      });
+    }
+
+    function formatMoney(value) {
+      const prefix = Number(value) >= 0 ? "+" : "-";
+      return prefix + Math.abs(Number(value)).toLocaleString(undefined, {
+        maximumFractionDigits: 1,
+        minimumFractionDigits: 1,
+      });
+    }
+
+    function formatPercent(value) {
+      return (Number(value) * 100).toFixed(1) + "%";
+    }
+
+    function formatMetricValue(metric, value) {
+      if (metric === "cumProfit" || metric === "profit") {
+        return formatMoney(value);
+      }
+      if (metric === "serviceRate" || metric === "reputation") {
+        return formatPercent(value);
+      }
+      if (metric === "quantity") {
+        return formatNumber(value, 0);
+      }
+      if (metric === "price") {
+        return formatNumber(value, 2);
+      }
+      return formatNumber(value, 1);
+    }
+
+    function metricLabel(metric) {
+      return {
+        cumProfit: "cumulative profit",
+        profit: "round profit",
+        reputation: "reputation",
+        serviceRate: "service rate",
+        price: "price",
+        quantity: "quantity",
+      }[metric] || metric;
+    }
+
+    function formatActionText(actionText) {
+      if (!actionText) {
+        return "hold";
+      }
+      return actionText
+        .replaceAll("forecast", "fcst")
+        .replaceAll("quantity", "qty")
+        .replaceAll("price", "px")
+        .replaceAll(";", "  |  ");
+    }
+
+    function tagText(value) {
+      return "[" + String(value).toUpperCase().replaceAll(" ", "_") + "]";
+    }
+
+    function runtimeQuery(options, extra = {}) {
+      return new URLSearchParams({
+        seed: String(options.seed),
+        rounds: String(options.rounds),
+        agent_mode: String(options.agent_mode),
+        shock_scale: String(options.shock_scale),
+        demand_bias: String(options.demand_bias),
+        ...extra,
+      }).toString();
+    }
+
+    function readRuntimeOptions() {
+      if (!runtime.active) {
+        return runtime.currentOptions;
+      }
+      return {
+        seed: controls.runtimeSeed.value,
+        rounds: controls.runtimeRounds.value,
+        agent_mode: controls.runtimeAgentMode.value,
+        shock_scale: state.shockScale,
+        demand_bias: state.demandBias,
+      };
+    }
+
+    function updateRuntimeLinks() {
+      if (!runtime.active || !controls.runtimeJsonLink) {
+        return;
+      }
+      runtime.currentOptions = readRuntimeOptions();
+      runtime.targetRounds = Number(runtime.currentOptions.rounds) || data.meta.rounds;
+      controls.runtimeJsonLink.href = "/api/payload?" + runtimeQuery(runtime.currentOptions);
+    }
+
+    function setRuntimeStatus(label, kind) {
+      if (!controls.runtimeStatus) {
+        return;
+      }
+      controls.runtimeStatus.className = "status-tag " + (kind || "status-neutral");
+      controls.runtimeStatus.textContent = label;
+    }
+
+    function appendRuntimeRoundLog(round) {
+      if (!runtime.active || !round) {
+        return;
+      }
+      const header =
+        '<div class="stream-line"><span class="stream-prefix">[CTRL]</span><span class="stream-text">&gt; focus --round R'
+        + round.round
+        + " --metric "
+        + escapeHtml(state.metric)
+        + " --agent "
+        + escapeHtml(state.agent)
+        + "</span></div>";
+      const agentLines = round.agents.map((agent) => {
+        const meta = agentMeta[agent.name];
+        return (
+          '<div class="stream-line">'
+          + '<span class="stream-prefix">[R' + round.round + "]</span>"
+          + '<span class="stream-agent" style="color:' + meta.color + ';">' + escapeHtml(agent.name) + "</span>"
+          + '<span class="stream-text">' + escapeHtml(formatActionText(agent.actionText)) + "</span>"
+          + "</div>"
+        );
+      });
+      runtime.logLines = runtime.logLines.concat([header]).concat(agentLines);
+    }
+
+    function replaceData(nextData, options = {}) {
+      const previousRounds = data.roundsData.length;
+      data = nextData;
+      agentMeta = Object.fromEntries(data.agents.map((agent) => [agent.name, agent]));
+      if (!data.agents.some((agent) => agent.name === state.agent)) {
+        state.agent = "all";
+      }
+      const maxRoundIndex = Math.max(0, data.roundsData.length - 1);
+      if (options.followLatest) {
+        state.roundIndex = maxRoundIndex;
+      } else {
+        state.roundIndex = Math.min(state.roundIndex, maxRoundIndex);
+      }
+      if (runtime.active && options.logLatestRound && data.roundsData.length > previousRounds) {
+        appendRuntimeRoundLog(data.roundsData[data.roundsData.length - 1]);
+      }
+      updateRuntimeLinks();
+      setOverview();
+      buildAgentOptions();
+      render();
+    }
+
+    function finishRuntimeIfIdle() {
+      if (runtime.donePending && !runtime.queue.length && !runtime.timer) {
+        setRuntimeStatus("ready", "status-neutral");
+        runtime.donePending = false;
+      }
+    }
+
+    function drainRuntimeQueue() {
+      if (runtime.timer) {
+        return;
+      }
+      if (!runtime.queue.length) {
+        finishRuntimeIfIdle();
+        return;
+      }
+      const nextPayload = runtime.queue.shift();
+      replaceData(nextPayload, { followLatest: true, logLatestRound: true });
+      runtime.timer = window.setTimeout(() => {
+        runtime.timer = 0;
+        drainRuntimeQueue();
+      }, runtime.delayMs);
+    }
+
+    function stopRuntimeStream() {
+      if (runtime.eventSource) {
+        runtime.eventSource.close();
+        runtime.eventSource = null;
+      }
+      if (runtime.timer) {
+        window.clearTimeout(runtime.timer);
+        runtime.timer = 0;
+      }
+      runtime.queue = [];
+      runtime.donePending = false;
+    }
+
+    function openRuntimeStream(startRound) {
+      stopRuntimeStream();
+      setRuntimeStatus("stream", "status-positive");
+      const source = new EventSource("/api/stream?" + runtimeQuery(runtime.currentOptions, { start_round: String(startRound) }));
+      runtime.eventSource = source;
+      source.addEventListener("round", (event) => {
+        runtime.queue.push(JSON.parse(event.data));
+        drainRuntimeQueue();
+      });
+      source.addEventListener("done", () => {
+        runtime.donePending = true;
+        if (runtime.eventSource === source) {
+          runtime.eventSource.close();
+          runtime.eventSource = null;
+        }
+        finishRuntimeIfIdle();
+      });
+      source.addEventListener("stream_error", (event) => {
+        if (runtime.eventSource === source) {
+          runtime.eventSource.close();
+          runtime.eventSource = null;
+        }
+        controls.controlStream.innerHTML = '<div class="stream-line"><span class="stream-prefix">[ERR]</span><span class="stream-text">' + escapeHtml(JSON.parse(event.data).error || "stream error") + '</span></div>';
+        setRuntimeStatus("error", "status-danger");
+      });
+      source.onerror = () => {
+        if (runtime.eventSource === source) {
+          runtime.eventSource.close();
+          runtime.eventSource = null;
+          setRuntimeStatus("link", "status-blue");
+        }
+      };
+    }
+
+    async function bootstrapRuntime(options, useExistingBootstrap) {
+      runtime.currentOptions = options;
+      runtime.targetRounds = Number(options.rounds) || data.meta.rounds;
+      updateRuntimeLinks();
+      runtime.logLines = [];
+
+      if (useExistingBootstrap) {
+        appendRuntimeRoundLog(data.roundsData[data.roundsData.length - 1]);
+        renderControlStream();
+        if (runtime.targetRounds > data.roundsData.length) {
+          openRuntimeStream(data.roundsData.length);
+        } else {
+          setRuntimeStatus("ready", "status-neutral");
+        }
+        return;
+      }
+
+      setRuntimeStatus("boot", "status-blue");
+      clearRuntimeView();
+      const response = await fetch("/api/payload?" + runtimeQuery(options, { limit_rounds: "1" }), {
+        headers: { Accept: "application/json" },
+      });
+      if (!response.ok) {
+        throw new Error("Bootstrap payload request failed");
+      }
+      const payload = await response.json();
+      replaceData(payload, { followLatest: true, logLatestRound: false });
+      runtime.logLines = [];
+      appendRuntimeRoundLog(data.roundsData[data.roundsData.length - 1]);
+      renderControlStream();
+      if (runtime.targetRounds > data.roundsData.length) {
+        openRuntimeStream(data.roundsData.length);
+      } else {
+        setRuntimeStatus("ready", "status-neutral");
+      }
+    }
+
+    function currentRound() {
+      return data.roundsData[state.roundIndex] || data.roundsData[0];
+    }
+
+    function clearRuntimeView() {
+      controls.marketReadout.textContent = "> awaiting runtime stream";
+      controls.agentReadout.textContent = "> awaiting runtime stream";
+      controls.marketChart.innerHTML = "";
+      controls.agentChart.innerHTML = "";
+      controls.controlStream.innerHTML = '<div class="stream-line"><span class="stream-prefix">[CTRL]</span><span class="stream-text">&gt; booting runtime stream...</span></div>';
+      controls.eventList.innerHTML = '<div class="empty-log">&gt; waiting for highest-impact moments...</div>';
+      controls.roundAgentLog.innerHTML = '<div class="empty-log">&gt; waiting for agent actions...</div>';
+      document.getElementById("focus-round-label").textContent = "-- / inspection";
+      document.getElementById("focus-round-copy").textContent = "Waiting for the next runtime batch.";
+      document.getElementById("detail-regime").textContent = "Booting";
+      document.getElementById("detail-spread").textContent = "--";
+      document.getElementById("detail-gap").textContent = "--";
+      document.getElementById("detail-shock").textContent = "--";
+      document.getElementById("detail-transfer").textContent = "--";
+      document.getElementById("detail-fulfillment").textContent = "--";
+      document.getElementById("detail-fulfillment-bar").style.width = "0%";
+      document.getElementById("detail-regime-tag").className = "status-tag status-blue";
+      document.getElementById("detail-regime-tag").textContent = "Boot";
+      document.getElementById("footer-node").textContent = "NODE: --";
+      document.getElementById("footer-total").textContent = "TOTAL: 0/" + runtime.targetRounds;
+      document.getElementById("footer-status").textContent = "STATUS: BOOT";
+      document.getElementById("footer-agent").textContent = "AGENT: " + String(state.agent).toUpperCase();
+      document.getElementById("footer-metric").textContent = "METRIC: " + String(state.metric).toUpperCase();
+      controls.footerBar.style.background = "#3e8ad6";
+      controls.footerBar.style.color = "#fff";
+    }
+
+    function projectedDemandSeries() {
+      if (runtime.active && data.market.projectedDemand) {
+        return data.market.projectedDemand;
+      }
+      return data.market.demand.map((value, index) => {
+        return Math.max(0, value + (data.market.shock[index] || 0) * state.shockScale + state.demandBias);
+      });
+    }
+
+    function seriesRange(values, floorZero = false) {
+      if (!values.length) {
+        return { min: 0, max: 1 };
+      }
+      let min = Math.min(...values);
+      let max = Math.max(...values);
+      if (floorZero) {
+        min = Math.min(0, min);
+      }
+      if (max === min) {
+        const pad = Math.max(1, Math.abs(max) * 0.1);
+        return { min: min - pad, max: max + pad };
+      }
+      const pad = (max - min) * 0.08;
+      return { min: min - pad, max: max + pad };
+    }
+
+    function xStepFor(length, width, padding) {
+      return length <= 1 ? 0 : (width - padding * 2) / (length - 1);
+    }
+
+    function createScale(min, max, height, padding) {
+      return (value) => {
+        if (max === min) {
+          return height / 2;
+        }
+        return height - padding - ((value - min) / (max - min)) * (height - padding * 2);
+      };
+    }
+
+    function buildPoints(values, width, height, padding, scaleY) {
+      const step = xStepFor(values.length, width, padding);
+      return values.map((value, index) => ({
+        x: padding + step * index,
+        y: scaleY(value),
+        value,
+      }));
+    }
+
+    function buildPath(points) {
+      return points.map((point, index) => {
+        const op = index === 0 ? "M" : "L";
+        return op + point.x.toFixed(2) + "," + point.y.toFixed(2);
+      }).join(" ");
+    }
+
+    function axisDigits(min, max) {
+      const extent = Math.max(Math.abs(min), Math.abs(max));
+      if (extent >= 100) return 0;
+      if (extent >= 10) return 1;
+      return 2;
+    }
+
+    function buildGrid(width, height, padding, columns, rows) {
+      const xStep = xStepFor(columns, width, padding);
+      const vertical = Array.from({ length: columns }, (_, index) => {
+        const x = padding + xStep * index;
+        return '<line x1="' + x.toFixed(2) + '" y1="' + padding + '" x2="' + x.toFixed(2) + '" y2="' + (height - padding).toFixed(2) + '" stroke="rgba(42,157,98,0.16)" stroke-dasharray="2 8"></line>';
+      }).join("");
+      const horizontal = Array.from({ length: rows }, (_, index) => {
+        const y = rows <= 1 ? height / 2 : padding + ((height - padding * 2) / (rows - 1)) * index;
+        return '<line x1="' + padding + '" y1="' + y.toFixed(2) + '" x2="' + (width - padding).toFixed(2) + '" y2="' + y.toFixed(2) + '" stroke="rgba(42,157,98,0.14)" stroke-dasharray="4 8"></line>';
+      }).join("");
+      return '<rect x="' + padding + '" y="' + padding + '" width="' + (width - padding * 2) + '" height="' + (height - padding * 2) + '" fill="none" stroke="rgba(42,157,98,0.35)"></rect>' + vertical + horizontal;
+    }
+
+    function buildRoundLabels(rounds, width, height, padding) {
+      const every = Math.max(1, Math.ceil(rounds.length / 8));
+      const step = xStepFor(rounds.length, width, padding);
+      return rounds.map((round, index) => {
+        if (index % every !== 0 && index !== rounds.length - 1) {
+          return "";
+        }
+        const x = padding + step * index;
+        const anchor = index === 0 ? "start" : (index === rounds.length - 1 ? "end" : "middle");
+        return '<text x="' + x.toFixed(2) + '" y="' + (height - 8).toFixed(2) + '" fill="rgba(42,157,98,0.9)" font-family="Fira Code, monospace" font-size="10" text-anchor="' + anchor + '">R' + round + "</text>";
+      }).join("");
+    }
+
+    function buildYAxis(min, max, height, padding) {
+      const digits = axisDigits(min, max);
+      const rows = 5;
+      return Array.from({ length: rows }, (_, index) => {
+        const ratio = rows <= 1 ? 0 : index / (rows - 1);
+        const value = max - (max - min) * ratio;
+        const y = padding + ((height - padding * 2) * ratio);
+        return '<text x="' + (padding - 8) + '" y="' + (y + 3).toFixed(2) + '" fill="rgba(42,157,98,0.9)" font-family="Fira Code, monospace" font-size="10" text-anchor="end">' + formatNumber(value, digits) + "</text>";
+      }).join("");
+    }
+
+    function buildShockBands(rounds, points, width, height, padding) {
+      if (!toggles.shocks || !points.length) {
+        return "";
+      }
+      const step = xStepFor(points.length, width, padding);
+      const regions = [];
+      let start = null;
+      rounds.forEach((round, index) => {
+        const active = Math.abs(round.shockComponent) >= 0.5;
+        if (active && start === null) {
+          start = index;
+        }
+        if (!active && start !== null) {
+          regions.push({ start, end: index - 1 });
+          start = null;
+        }
+      });
+      if (start !== null) {
+        regions.push({ start, end: rounds.length - 1 });
+      }
+      return regions.map((region) => {
+        const x1 = Math.max(padding, region.start === 0 ? padding : points[region.start].x - step / 2);
+        const x2 = Math.min(width - padding, region.end === points.length - 1 ? width - padding : points[region.end].x + step / 2);
+        const bandWidth = Math.max(2, x2 - x1);
+        return (
+          '<rect x="' + x1.toFixed(2) + '" y="' + padding + '" width="' + bandWidth.toFixed(2) + '" height="' + (height - padding * 2) + '" fill="rgba(61,220,132,0.08)" stroke="rgba(61,220,132,0.32)" stroke-dasharray="5 7"></rect>'
+          + '<text x="' + (x1 + 8).toFixed(2) + '" y="' + (padding + 14).toFixed(2) + '" fill="rgba(61,220,132,0.82)" font-family="Fira Code, monospace" font-size="10">shock regime</text>'
+        );
+      }).join("");
+    }
+
+    function toneForRound(round) {
+      if (round.defaultCount > 0) {
+        return {
+          label: "SYSTEM_OVERRIDE",
+          tagClass: "status-danger",
+          panelClass: "warning-mode",
+          lineColor: "#c7347e",
+          footerBg: "#c7347e",
+          footerColor: "#fff",
+        };
+      }
+      if (round.dumpCount > 0) {
+        return {
+          label: "PRICE_WAR",
+          tagClass: "status-blue",
+          panelClass: "info-mode",
+          lineColor: "#3e8ad6",
+          footerBg: "#3e8ad6",
+          footerColor: "#fff",
+        };
+      }
+      if (Math.abs(round.shockComponent) >= 0.5) {
+        return {
+          label: "SHOCK_ACTIVE",
+          tagClass: "status-positive",
+          panelClass: "stable-mode",
+          lineColor: "#3ddc84",
+          footerBg: "#2a9d62",
+          footerColor: "#0a100c",
+        };
+      }
+      if (round.transferVolume > 0) {
+        return {
+          label: "TRANSFER_SYNC",
+          tagClass: "status-blue",
+          panelClass: "info-mode",
+          lineColor: "#3e8ad6",
+          footerBg: "#2a9d62",
+          footerColor: "#0a100c",
+        };
+      }
+      return {
+        label: "STABLE",
+        tagClass: "status-neutral",
+        panelClass: "stable-mode",
+        lineColor: "#2a9d62",
+        footerBg: "#2a9d62",
+        footerColor: "#0a100c",
+      };
+    }
+
+    function toneForEvent(event) {
+      if (event.tags.includes("default")) {
+        return { tagClass: "status-danger", lineColor: "#c7347e", panelClass: "warning-mode" };
+      }
+      if (event.tags.includes("dump")) {
+        return { tagClass: "status-blue", lineColor: "#3e8ad6", panelClass: "info-mode" };
+      }
+      if (event.tags.includes("shock")) {
+        return { tagClass: "status-positive", lineColor: "#3ddc84", panelClass: "stable-mode" };
+      }
+      return { tagClass: "status-neutral", lineColor: "#2a9d62", panelClass: "stable-mode" };
+    }
+
+    function toneForAgent(agent) {
+      if (agent.defaultFlag) {
+        return { label: "DEFAULT", tagClass: "status-danger" };
+      }
+      if (agent.dumpFlag) {
+        return { label: "DUMP", tagClass: "status-blue" };
+      }
+      if (agent.transferIn > 0 || agent.transferOut > 0) {
+        return { label: "TRANSFER", tagClass: "status-blue" };
+      }
+      return { label: "STABLE", tagClass: "status-neutral" };
+    }
+
+    function serviceTagClass(rate) {
+      if (rate < 0.9) return "status-danger";
+      if (rate < 0.98) return "status-blue";
+      return "status-positive";
+    }
+
+    function syncControls() {
+      const round = currentRound();
+      controls.roundSlider.max = Math.max(0, data.roundsData.length - 1);
+      controls.roundSlider.value = String(state.roundIndex);
+      controls.metricSelect.value = state.metric;
+      controls.agentSelect.value = state.agent;
+      controls.shockScale.value = String(state.shockScale);
+      controls.demandBias.value = String(state.demandBias);
+      controls.roundSliderValue.textContent = "R" + round.round;
+      controls.metricSelectValue.textContent = state.metric;
+      controls.agentSelectValue.textContent = state.agent;
+      controls.shockScaleValue.textContent = state.shockScale.toFixed(1) + "x";
+      controls.demandBiasValue.textContent = (state.demandBias >= 0 ? "+" : "") + state.demandBias;
+      controls.chartViewButtons.forEach((button) => {
+        const isActive = button.dataset.chartView === state.chartView;
+        button.classList.toggle("active", isActive);
+      });
+      controls.marketPane.classList.toggle("active", state.chartView === "market");
+      controls.agentPane.classList.toggle("active", state.chartView === "agent");
+    }
+
+    function setOverview() {
+      document.getElementById("hero-strategy").textContent = data.meta.strategy;
+      document.getElementById("hero-seed").textContent = data.meta.seed;
+      document.getElementById("hero-rounds").textContent = runtime.active ? runtime.targetRounds : data.meta.rounds;
+      document.getElementById("hero-agents").textContent = data.meta.agents.length;
+      document.getElementById("kpi-profit").textContent = formatMoney(data.overview.totalProfit);
+      document.getElementById("kpi-fulfillment").textContent = formatPercent(data.overview.fulfillmentRatio);
+      document.getElementById("kpi-fulfillment-bar").style.width = Math.max(2, data.overview.fulfillmentRatio * 100) + "%";
+      document.getElementById("kpi-price").textContent = formatNumber(data.overview.avgPrice, 2);
+      document.getElementById("kpi-transfer").textContent = formatNumber(data.overview.transferVolume, 1);
+    }
+
+    function buildAgentOptions() {
+      const selected = data.agents.some((agent) => agent.name === state.agent) ? state.agent : "all";
+      controls.agentSelect.innerHTML = "";
+      [{ value: "all", label: "All agents" }]
+        .concat(data.agents.map((agent) => ({ value: agent.name, label: agent.name })))
+        .forEach((option) => {
+          const node = document.createElement("option");
+          node.value = option.value;
+          node.textContent = option.label;
+          controls.agentSelect.appendChild(node);
+        });
+      state.agent = selected;
+      controls.agentSelect.value = selected;
+    }
+
+    function setupControls() {
+      controls.roundSlider.max = Math.max(0, data.roundsData.length - 1);
+      controls.metricSelect.value = state.metric;
+      controls.agentSelect.value = state.agent;
+
+      controls.roundSlider.addEventListener("input", () => {
+        state.roundIndex = Number(controls.roundSlider.value);
+        render();
+      });
+
+      controls.metricSelect.addEventListener("change", () => {
+        state.metric = controls.metricSelect.value;
+        render();
+      });
+
+      controls.agentSelect.addEventListener("change", () => {
+        state.agent = controls.agentSelect.value;
+        render();
+      });
+
+      controls.shockScale.addEventListener("input", () => {
+        state.shockScale = Number(controls.shockScale.value);
+        if (runtime.active) {
+          updateRuntimeLinks();
+        }
+        render();
+      });
+
+      controls.demandBias.addEventListener("input", () => {
+        state.demandBias = Number(controls.demandBias.value);
+        if (runtime.active) {
+          updateRuntimeLinks();
+        }
+        render();
+      });
+
+      document.querySelectorAll("[data-toggle]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const key = button.dataset.toggle;
+          toggles[key] = !toggles[key];
+          button.classList.toggle("active", toggles[key]);
+          render();
+        });
+      });
+
+      controls.chartViewButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          state.chartView = button.dataset.chartView || "market";
+          render();
+        });
+      });
+
+      window.addEventListener("keydown", (event) => {
+        if (event.target instanceof HTMLElement) {
+          const tagName = event.target.tagName;
+          if (tagName === "INPUT" || tagName === "SELECT" || event.target.isContentEditable) {
+            return;
+          }
+        }
+
+        if (event.key === "ArrowLeft" && state.roundIndex > 0) {
+          state.roundIndex -= 1;
+          render();
+        }
+
+        if (event.key === "ArrowRight" && state.roundIndex < data.roundsData.length - 1) {
+          state.roundIndex += 1;
+          render();
+        }
+      });
+
+      if (runtime.active && controls.runtimeForm) {
+        controls.runtimeForm.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          const nextOptions = readRuntimeOptions();
+          const query = runtimeQuery(nextOptions);
+          window.history.replaceState({}, "", "?" + query);
+          try {
+            await bootstrapRuntime(nextOptions, false);
+          } catch (error) {
+            stopRuntimeStream();
+            setRuntimeStatus("error", "status-danger");
+          }
+        });
+
+        [controls.runtimeSeed, controls.runtimeRounds, controls.runtimeAgentMode].forEach((node) => {
+          if (!node) {
+            return;
+          }
+          node.addEventListener("input", updateRuntimeLinks);
+          node.addEventListener("change", updateRuntimeLinks);
+        });
+        updateRuntimeLinks();
+      }
+    }
+
+    function activeAgents() {
+      return state.agent === "all" ? data.agents : data.agents.filter((agent) => agent.name === state.agent);
+    }
+
+    function renderMarketChart() {
+      const width = 860;
+      const height = 240;
+      const padding = 28;
+      const demand = data.market.demand;
+      const sales = data.market.sales;
+      const projected = projectedDemandSeries();
+      const range = seriesRange(demand.concat(sales, projected), true);
+      const scaleY = createScale(range.min, range.max, height, padding);
+      const demandPoints = buildPoints(demand, width, height, padding, scaleY);
+      const salesPoints = buildPoints(sales, width, height, padding, scaleY);
+      const projectedPoints = buildPoints(projected, width, height, padding, scaleY);
+      const selectedRound = currentRound();
+      const selectedDemand = demandPoints[state.roundIndex];
+      const selectedSales = salesPoints[state.roundIndex];
+      const selectedProjected = projectedPoints[state.roundIndex];
+
+      controls.marketChart.setAttribute("viewBox", "0 0 " + width + " " + height);
+      controls.marketChart.setAttribute("preserveAspectRatio", "none");
+      const shockBands = buildShockBands(data.roundsData, demandPoints, width, height, padding);
+      const overlays = data.roundsData.map((round, index) => {
+        if (!demandPoints[index]) return "";
+        const x = demandPoints[index].x;
+        let markup = "";
+        if (toggles.defaults && round.defaultCount > 0) {
+          markup += '<rect x="' + (x - 4).toFixed(2) + '" y="' + (padding + 20) + '" width="8" height="8" fill="#c7347e"></rect>';
+        }
+        if (toggles.dumps && round.dumpCount > 0) {
+          markup += '<rect x="' + (x - 4).toFixed(2) + '" y="' + (padding + 34) + '" width="8" height="8" fill="#3e8ad6"></rect>';
+        }
+        if (toggles.transfers && round.transferVolume > 0) {
+          markup += '<rect x="' + (x - 4).toFixed(2) + '" y="' + (padding + 48) + '" width="8" height="8" fill="#fff"></rect>';
+        }
+        return markup;
+      }).join("");
+
+      controls.marketChart.innerHTML =
+        buildGrid(width, height, padding, Math.max(demand.length, 2), 5)
+        + buildYAxis(range.min, range.max, height, padding)
+        + shockBands
+        + overlays
+        + '<path d="' + buildPath(demandPoints) + '" fill="none" stroke="#3ddc84" stroke-width="2"></path>'
+        + '<path d="' + buildPath(salesPoints) + '" fill="none" stroke="#fff" stroke-width="1.7"></path>'
+        + '<path d="' + buildPath(projectedPoints) + '" fill="none" stroke="#3e8ad6" stroke-width="1.7" stroke-dasharray="5 5"></path>'
+        + '<line x1="' + selectedDemand.x.toFixed(2) + '" y1="' + padding + '" x2="' + selectedDemand.x.toFixed(2) + '" y2="' + (height - padding).toFixed(2) + '" stroke="rgba(255,255,255,0.35)" stroke-width="1.1"></line>'
+        + '<rect x="' + (selectedDemand.x - 4).toFixed(2) + '" y="' + (selectedDemand.y - 4).toFixed(2) + '" width="8" height="8" fill="#0a100c" stroke="#3ddc84" stroke-width="2"></rect>'
+        + '<rect x="' + (selectedSales.x - 4).toFixed(2) + '" y="' + (selectedSales.y - 4).toFixed(2) + '" width="8" height="8" fill="#0a100c" stroke="#fff" stroke-width="2"></rect>'
+        + '<rect x="' + (selectedProjected.x - 4).toFixed(2) + '" y="' + (selectedProjected.y - 4).toFixed(2) + '" width="8" height="8" fill="#0a100c" stroke="#3e8ad6" stroke-width="2"></rect>'
+        + buildRoundLabels(data.market.rounds, width, height, padding);
+
+      if (state.chartView === "market") {
+        controls.chartPanelTitle.textContent = "Demand / sales / projected shock trace";
+        controls.chartPanelLegend.innerHTML = [
+          '<span class="status-tag status-positive">Demand</span>',
+          '<span class="status-tag status-neutral">Sales</span>',
+          '<span class="status-tag status-blue">Projection</span>'
+        ].join("");
+      }
+
+      controls.marketReadout.textContent =
+        "> R" + selectedRound.round
+        + " | demand " + formatNumber(selectedRound.demandTrue, 0)
+        + " | sales " + formatNumber(selectedRound.marketTotalSales, 0)
+        + " | projected " + formatNumber(projected[state.roundIndex], 0)
+        + " | shock " + formatNumber(selectedRound.shockComponent, 1);
+    }
+
+    function renderAgentChart() {
+      const visible = activeAgents();
+      const width = 860;
+      const height = 240;
+      const padding = 28;
+      const seriesCollection = visible.map((agent) => ({
+        name: agent.name,
+        color: agent.color,
+        values: agent.series[state.metric],
+      }));
+      const allValues = seriesCollection.flatMap((series) => series.values);
+      const range = seriesRange(allValues, state.metric === "cumProfit" || state.metric === "profit");
+      const scaleY = createScale(range.min, range.max, height, padding);
+      const markerX = padding + xStepFor(data.market.rounds.length, width, padding) * state.roundIndex;
+
+      controls.agentChart.setAttribute("viewBox", "0 0 " + width + " " + height);
+      controls.agentChart.setAttribute("preserveAspectRatio", "none");
+
+      const paths = seriesCollection.map((series) => {
+        const points = buildPoints(series.values, width, height, padding, scaleY);
+        const selected = points[state.roundIndex];
+        return (
+          '<path d="' + buildPath(points) + '" fill="none" stroke="' + series.color + '" stroke-width="2"></path>'
+          + '<rect x="' + (selected.x - 4).toFixed(2) + '" y="' + (selected.y - 4).toFixed(2) + '" width="8" height="8" fill="#0a100c" stroke="' + series.color + '" stroke-width="2"></rect>'
+        );
+      }).join("");
+
+      controls.agentChart.innerHTML =
+        buildGrid(width, height, padding, Math.max(data.market.rounds.length, 2), 5)
+        + buildYAxis(range.min, range.max, height, padding)
+        + paths
+        + '<line x1="' + markerX.toFixed(2) + '" y1="' + padding + '" x2="' + markerX.toFixed(2) + '" y2="' + (height - padding).toFixed(2) + '" stroke="rgba(255,255,255,0.35)" stroke-width="1.1"></line>'
+        + buildRoundLabels(data.market.rounds, width, height, padding);
+
+      if (state.chartView === "agent") {
+        controls.chartPanelTitle.textContent = "Agent metric / " + metricLabel(state.metric);
+        controls.chartPanelLegend.innerHTML = visible.map((agent) => {
+          return '<span class="status-tag" style="color:' + agent.color + ';border-color:' + agent.color + ';">' + escapeHtml(agent.name) + "</span>";
+        }).join("");
+      }
+
+      const round = currentRound();
+      const readout = round.agents
+        .filter((agent) => state.agent === "all" || agent.name === state.agent)
+        .map((agent) => {
+          return agent.name + " " + formatMetricValue(state.metric, agent[state.metric]);
+        })
+        .join(" | ");
+      controls.agentReadout.textContent = "> R" + round.round + " | " + metricLabel(state.metric) + " | " + readout;
+    }
+
+    function renderRoundDetails() {
+      const round = currentRound();
+      const tone = toneForRound(round);
+
+      controls.focusPanel.classList.remove("warning-mode", "info-mode", "stable-mode");
+      controls.focusPanel.classList.add(tone.panelClass);
+
+      document.getElementById("focus-round-label").textContent = "R" + round.round + " / inspection";
+      document.getElementById("focus-round-copy").textContent =
+        "Demand " + formatNumber(round.demandTrue, 0)
+        + ", sales " + formatNumber(round.marketTotalSales, 0)
+        + ", observed gap " + formatNumber(round.demandGap, 1)
+        + ", average price " + formatNumber(round.marketAvgPrice, 2) + ".";
+      document.getElementById("detail-regime").textContent = tone.label.replaceAll("_", " ");
+      document.getElementById("detail-spread").textContent = formatNumber(round.agentSpread, 2);
+      document.getElementById("detail-gap").textContent = formatNumber(round.demandGap, 1);
+      document.getElementById("detail-shock").textContent = formatNumber(round.shockComponent, 1);
+      document.getElementById("detail-transfer").textContent = formatNumber(round.transferVolume, 1);
+      document.getElementById("detail-fulfillment").textContent = formatPercent(round.fulfillmentRatio);
+      document.getElementById("detail-fulfillment-bar").style.width = Math.max(2, round.fulfillmentRatio * 100) + "%";
+
+      const regimeTag = document.getElementById("detail-regime-tag");
+      regimeTag.className = "status-tag " + tone.tagClass;
+      regimeTag.textContent = tone.label;
+
+      document.getElementById("footer-node").textContent = "NODE: R" + round.round;
+      document.getElementById("footer-total").textContent = runtime.active
+        ? "TOTAL: " + data.roundsData.length + "/" + runtime.targetRounds
+        : "TOTAL: " + data.meta.rounds;
+      document.getElementById("footer-status").textContent = "STATUS: " + tone.label;
+      document.getElementById("footer-agent").textContent = "AGENT: " + String(state.agent).toUpperCase();
+      document.getElementById("footer-metric").textContent = "METRIC: " + String(state.metric).toUpperCase();
+      controls.footerBar.style.background = tone.footerBg;
+      controls.footerBar.style.color = tone.footerColor;
+    }
+
+    function renderRoundAgentLog() {
+      const round = currentRound();
+      const rows = round.agents
+        .map((agent) => {
+          const meta = agentMeta[agent.name];
+          const tone = toneForAgent(agent);
+          const serviceWidth = Math.max(2, agent.serviceRate * 100);
+          return `
+            <div class="log-entry clickable ${state.agent === agent.name ? "active" : ""}" data-agent="${escapeHtml(agent.name)}" style="border-left-color:${meta.color};">
+              <div class="log-label">[AGENT: ${escapeHtml(agent.name)}] <span class="status-tag ${tone.tagClass}">${tone.label}</span></div>
+              <p class="log-body">
+                &gt; ${escapeHtml(formatActionText(agent.actionText))}
+                <span class="muted-copy">price ${formatNumber(agent.price, 2)} | qty ${formatNumber(agent.quantity, 0)} | sold ${formatNumber(agent.realizedSales, 1)} | short ${formatNumber(agent.shortage, 1)} | pnl ${formatMoney(agent.profit)}</span>
+              </p>
+              <div class="loading-bar-container">
+                <div class="loading-bar" style="width:${serviceWidth}%;background:${meta.color};box-shadow:0 0 8px ${meta.color};"></div>
+              </div>
+            </div>
+          `;
+        })
+        .join("");
+
+      controls.roundAgentLog.innerHTML = rows || '<div class="empty-log">&gt; no agent rows match the current filter</div>';
+      controls.roundAgentLog.querySelectorAll("[data-agent]").forEach((node) => {
+        node.addEventListener("click", () => {
+          const next = node.getAttribute("data-agent");
+          state.agent = next || "all";
+          controls.agentSelect.value = state.agent;
+          render();
+        });
+      });
+    }
+
+    function renderAgentCards() {
+      const round = currentRound();
+      const cards = round.agents
+        .map((agent) => {
+          const meta = agentMeta[agent.name];
+          const tone = toneForAgent(agent);
+          return `
+            <article class="comparison-card agent-card ${state.agent === agent.name ? "active" : ""}" data-agent="${escapeHtml(agent.name)}" data-tag="${escapeHtml(tagText(agent.name))}" style="--agent-color:${meta.color};border-left-color:${meta.color};">
+              <div class="panel-header">
+                <div>
+                  <span class="step-tag">${escapeHtml(meta.role)}</span>
+                  <h3 class="panel-title">${escapeHtml(agent.name)}</h3>
+                </div>
+                <span class="status-tag ${serviceTagClass(agent.serviceRate)}">${formatPercent(agent.serviceRate)}</span>
+              </div>
+
+              <div class="flow-strip" style="color:${meta.color};">
+                <span class="flow-node">PX ${formatNumber(agent.price, 2)}</span>
+                <span class="flow-node">Q ${formatNumber(agent.quantity, 0)}</span>
+                <span class="flow-node">FC ${formatNumber(agent.forecastDemand, 1)}</span>
+              </div>
+
+              <div class="system-message-box">&gt; ${escapeHtml(formatActionText(agent.actionText))}</div>
+              <p class="agent-copy">${escapeHtml(meta.persona)}</p>
+
+              <div class="agent-params">
+                <div class="param-line"><span class="param-label">Round pnl</span><span class="param-value">${formatMoney(agent.profit)}</span></div>
+                <div class="param-line"><span class="param-label">Cum pnl</span><span class="param-value">${formatMoney(agent.cumProfit)}</span></div>
+                <div class="param-line"><span class="param-label">Reputation</span><span class="param-value">${formatPercent(agent.reputation)}</span></div>
+                <div class="param-line"><span class="param-label">Flow</span><span class="param-value">${formatNumber(agent.transferIn, 1)} in / ${formatNumber(agent.transferOut, 1)} out</span></div>
+                <div class="param-line"><span class="param-label">State</span><span class="param-value"><span class="status-tag ${tone.tagClass}">${tone.label}</span></span></div>
+              </div>
+            </article>
+          `;
+        })
+        .join("");
+
+      controls.agentGrid.innerHTML = cards || '<div class="empty-log">&gt; no agents match the current filter</div>';
+      controls.agentGrid.querySelectorAll("[data-agent]").forEach((node) => {
+        node.addEventListener("click", () => {
+          const next = node.getAttribute("data-agent");
+          state.agent = next || "all";
+          controls.agentSelect.value = state.agent;
+          render();
+        });
+      });
+    }
+
+    function renderEvents() {
+      const items = data.events
+        .filter((event) => {
+          if (event.tags.includes("shock") && !toggles.shocks) return false;
+          if (event.tags.includes("default") && !toggles.defaults) return false;
+          if (event.tags.includes("dump") && !toggles.dumps) return false;
+          if (event.tags.includes("transfer") && !toggles.transfers) return false;
+          return true;
+        })
+        .map((event) => {
+          const tone = toneForEvent(event);
+          return `
+            <div class="log-entry clickable" data-round="${event.round}" style="border-left-color:${tone.lineColor};">
+              <div class="log-label">[ROUND_${event.round}] <span class="status-tag ${tone.tagClass}">${event.tags.join(" | ")}</span></div>
+              <p class="log-body">
+                &gt; ${escapeHtml(event.headline)}
+                <span class="muted-copy">${escapeHtml(event.details)} | impact ${event.score.toFixed(1)}</span>
+              </p>
+            </div>
+          `;
+        })
+        .join("");
+
+      controls.eventList.innerHTML = items || '<div class="empty-log">&gt; no events pass the current overlay filters</div>';
+      controls.eventList.querySelectorAll("[data-round]").forEach((node) => {
+        node.addEventListener("click", () => {
+          state.roundIndex = Number(node.getAttribute("data-round")) || 0;
+          render();
+        });
+      });
+    }
+
+    function syncEventPanelHeight() {
+      if (!controls.focusPanel || !controls.eventPanel) {
+        return;
+      }
+      if (window.innerWidth <= 1220) {
+        controls.eventPanel.style.height = "";
+        controls.eventList.style.maxHeight = "";
+        return;
+      }
+
+      const focusRect = controls.focusPanel.getBoundingClientRect();
+      const eventRect = controls.eventPanel.getBoundingClientRect();
+      const available = Math.min(420, Math.floor(focusRect.bottom - eventRect.top));
+
+      if (available <= 160) {
+        controls.eventPanel.style.height = "";
+        controls.eventList.style.maxHeight = "";
+        return;
+      }
+
+      controls.eventPanel.style.height = available + "px";
+
+      const panelStyles = window.getComputedStyle(controls.eventPanel);
+      const contentBoxHeight =
+        available
+        - (parseFloat(panelStyles.paddingTop || "0") || 0)
+        - (parseFloat(panelStyles.paddingBottom || "0") || 0);
+      const header = controls.eventPanel.querySelector(".panel-header");
+      const headerHeight = header ? header.getBoundingClientRect().height : 0;
+      const listTop = parseFloat(window.getComputedStyle(controls.eventList).marginTop || "0") || 0;
+      const maxHeight = Math.max(120, Math.floor(contentBoxHeight - headerHeight - listTop));
+      controls.eventList.style.maxHeight = maxHeight + "px";
+    }
+
+    function scheduleEventPanelSync() {
+      requestAnimationFrame(() => {
+        syncEventPanelHeight();
+        requestAnimationFrame(syncEventPanelHeight);
+      });
+      window.setTimeout(syncEventPanelHeight, 80);
+      window.setTimeout(syncEventPanelHeight, 220);
+    }
+
+    function renderControlStream() {
+      if (runtime.active && runtime.logLines.length) {
+        controls.controlStream.innerHTML = runtime.logLines.join("");
+        return;
+      }
+      const round = currentRound();
+      const lines = [
+        '<div class="stream-line"><span class="stream-prefix">[CTRL]</span><span class="stream-text">&gt; focus --round R'
+        + round.round
+        + ' --metric '
+        + escapeHtml(state.metric)
+        + ' --agent '
+        + escapeHtml(state.agent)
+        + '</span></div>'
+      ];
+      round.agents.forEach((agent) => {
+        const meta = agentMeta[agent.name];
+        lines.push(
+          '<div class="stream-line">'
+          + '<span class="stream-prefix">[R' + round.round + ']</span>'
+          + '<span class="stream-agent" style="color:' + meta.color + ';">' + escapeHtml(agent.name) + '</span>'
+          + '<span class="stream-text">' + escapeHtml(formatActionText(agent.actionText)) + '</span>'
+          + '</div>'
+        );
+      });
+      controls.controlStream.innerHTML = lines.join("");
+    }
+
+    function render() {
+      syncControls();
+      renderMarketChart();
+      renderAgentChart();
+      renderRoundDetails();
+      renderRoundAgentLog();
+      renderAgentCards();
+      renderEvents();
+      renderControlStream();
+      scheduleEventPanelSync();
+    }
+
+    setOverview();
+    buildAgentOptions();
+    setupControls();
+    render();
+    if (runtime.active) {
+      bootstrapRuntime(runtime.currentOptions, true).catch(() => {
+        stopRuntimeStream();
+        setRuntimeStatus("error", "status-danger");
+      });
+    }
+    window.addEventListener("resize", () => {
+      scheduleEventPanelSync();
+    });
+    window.addEventListener("load", scheduleEventPanelSync);
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => {
+        scheduleEventPanelSync();
+      });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pj-ag4"
+version = "0.1.0"
+description = "LLM-driven market and game simulation framework for PJ-AG4"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "matplotlib>=3.8",
+  "openai>=1.99,<2",
+  "python-dotenv>=1.0,<2",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+]
+
+[project.scripts]
+pj-ag4-run = "pj_ag4.cli:main"
+pj-ag4-web = "pj_ag4.web:main"
+pj-ag4-benchmark = "quant.run_benchmarks:main"
+pj-ag4-scenarios = "quant.run_scenarios:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src", "."]
+include = ["pj_ag4*", "quant*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
