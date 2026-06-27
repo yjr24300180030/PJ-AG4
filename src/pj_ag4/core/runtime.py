@@ -56,6 +56,9 @@ class SimulationRuntime:
                 updated_rows.append(row)
                 continue
             trace = observe_result(row, round_rows)
+            if trace is None:
+                updated_rows.append(row)
+                continue
             state = getattr(agent, "strategy_state", None)
             updated_rows.append(
                 replace(

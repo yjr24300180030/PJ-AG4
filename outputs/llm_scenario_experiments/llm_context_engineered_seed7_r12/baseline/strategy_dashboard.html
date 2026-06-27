@@ -1,0 +1,2327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PJ-AG4 Strategy Sandbox</title>
+  <style>
+    :root {
+      --terminal-bg: #0a100c;
+      --terminal-text: #3ddc84;
+      --terminal-text-darker: #2a9d62;
+      --terminal-glow: rgba(61, 220, 132, 0.25);
+      --glitch-color-1: #c7347e;
+      --glitch-color-2: #3e8ad6;
+      --warning-red: #ff4d4d;
+      --warning-red-soft: rgba(255, 77, 77, 0.14);
+      --warning-orange: #ff5a36;
+      --warning-orange-deep: #b63a1f;
+      --warning-orange-soft: rgba(255, 90, 54, 0.18);
+      --blue-soft: rgba(62, 138, 214, 0.12);
+      --green-soft: rgba(61, 220, 132, 0.05);
+    }
+
+    @keyframes scanline {
+      0% { background-position: 0 0; }
+      100% { background-position: 0 100%; }
+    }
+
+    @keyframes flicker {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.985; }
+    }
+
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+
+    * { box-sizing: border-box; }
+
+    html,
+    body {
+      min-height: 100%;
+      background: #000;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Fira Code", "Operator Mono", "Courier New", Courier, monospace;
+      color: var(--terminal-text);
+    }
+
+    .shell {
+      width: min(1480px, calc(100vw - 20px));
+      min-height: calc(100vh - 20px);
+      margin: 10px auto 28px;
+    }
+
+    .slide-container {
+      width: 100%;
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: visible;
+      background: var(--terminal-bg);
+      border: 2px solid var(--terminal-text-darker);
+      border-radius: 4px;
+      box-shadow: 0 0 15px var(--terminal-glow), inset 0 0 80px rgba(0,0,0,0.8);
+      animation: flicker 0.2s infinite;
+    }
+
+    .slide-container::before {
+      content: " ";
+      display: block;
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.2) 50%);
+      z-index: 10;
+      background-size: 100% 3px;
+      pointer-events: none;
+      animation: scanline 20s linear infinite;
+    }
+
+    .slide-header,
+    .summary-row,
+    .slide-content,
+    .slide-footer {
+      position: relative;
+      z-index: 5;
+    }
+
+    .slide-header {
+      padding: 14px 28px 10px 28px;
+      border-bottom: 1px solid var(--terminal-text-darker);
+      text-shadow: 0 0 4px var(--terminal-glow);
+    }
+
+    .header-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(360px, 0.92fr);
+      gap: 18px 28px;
+      align-items: center;
+    }
+
+    .title-block {
+      min-width: 0;
+    }
+
+    .page-kicker {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--terminal-text-darker);
+      margin-bottom: 10px;
+    }
+
+    .slide-title {
+      font-size: clamp(1.45rem, 2.4vw, 2.35rem);
+      font-weight: 700;
+      margin: 0;
+      position: relative;
+      text-transform: uppercase;
+      line-height: 1.08;
+    }
+
+    .glitch-effect {
+      position: relative;
+    }
+
+    .glitch-effect::before,
+    .glitch-effect::after {
+      content: attr(data-text);
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--terminal-bg);
+      overflow: hidden;
+    }
+
+    .glitch-effect::before {
+      left: 2px;
+      text-shadow: -2px 0 var(--glitch-color-1);
+      animation: glitch-anim-1 3s infinite linear reverse;
+    }
+
+    .glitch-effect::after {
+      left: -2px;
+      text-shadow: -2px 0 var(--glitch-color-2);
+      animation: glitch-anim-2 2.5s infinite linear reverse;
+    }
+
+    @keyframes glitch-anim-1 {
+      0%, 100% { clip-path: inset(45% 0 56% 0); }
+      25% { clip-path: inset(0 0 100% 0); }
+      50% { clip-path: inset(80% 0 2% 0); }
+      75% { clip-path: inset(40% 0 45% 0); }
+    }
+
+    @keyframes glitch-anim-2 {
+      0%, 100% { clip-path: inset(65% 0 30% 0); }
+      25% { clip-path: inset(20% 0 75% 0); }
+      50% { clip-path: inset(90% 0 1% 0); }
+      75% { clip-path: inset(10% 0 88% 0); }
+    }
+
+    .cursor {
+      display: inline-block;
+      width: 1rem;
+      height: 1.8rem;
+      background: var(--terminal-text);
+      animation: blink 1.2s steps(1) infinite;
+      margin-left: 10px;
+      box-shadow: 0 0 5px var(--terminal-glow);
+      vertical-align: middle;
+    }
+
+    .slide-subtitle {
+      margin: 0;
+      font-size: 0.88rem;
+      line-height: 1.55;
+      color: rgba(61, 220, 132, 0.85);
+      max-width: 46ch;
+      justify-self: end;
+    }
+
+    .system-message-box {
+      border: 1px dotted var(--terminal-text-darker);
+      padding: 10px 12px;
+      margin-top: 10px;
+      background: rgba(61, 220, 132, 0.05);
+      font-size: 0.84rem;
+      line-height: 1.5;
+    }
+
+    .system-message-box::before {
+      content: "[LOG]: ";
+      font-weight: bold;
+      color: var(--terminal-text-darker);
+    }
+
+    .operator-box {
+      background: rgba(61, 220, 132, 0.05);
+      border: 1px dashed var(--terminal-text-darker);
+      padding: 14px;
+      position: relative;
+      min-width: 0;
+    }
+
+    .tagged-box::before {
+      content: attr(data-tag);
+      position: absolute;
+      top: -10px;
+      left: 15px;
+      background: var(--terminal-bg);
+      padding: 0 10px;
+      font-size: 0.76rem;
+      color: var(--terminal-text-darker);
+    }
+
+    .param-line {
+      margin-bottom: 6px;
+      font-size: 0.82rem;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .param-label {
+      color: var(--terminal-text-darker);
+      white-space: nowrap;
+      min-width: 82px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .param-value {
+      text-align: right;
+      word-break: break-word;
+      color: #fff;
+    }
+
+    .progress-block {
+      margin-top: 8px;
+    }
+
+    .summary-row {
+      padding: 10px 28px 0 28px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .metric-card {
+      padding: 8px 10px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 4px 12px;
+    }
+
+    .metric-card::before {
+      display: none;
+    }
+
+    .metric-card .step-tag {
+      margin: 0;
+    }
+
+    .metric-value {
+      display: block;
+      margin-top: 0;
+      font-size: 1rem;
+      line-height: 1.1;
+      font-weight: 700;
+      color: #fff;
+      justify-self: end;
+    }
+
+    .metric-copy {
+      display: none;
+    }
+
+    .metric-card .progress-block {
+      grid-column: 1 / -1;
+      margin-top: 4px;
+    }
+
+    .progress-info {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 0.72rem;
+      margin-bottom: 6px;
+      color: var(--terminal-text-darker);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .progress-bar-container,
+    .meter-container,
+    .loading-bar-container {
+      position: relative;
+      overflow: hidden;
+      background: rgba(42, 157, 98, 0.2);
+      border: 1px solid var(--terminal-text-darker);
+    }
+
+    .progress-bar-container,
+    .meter-container {
+      height: 12px;
+      width: 100%;
+    }
+
+    .loading-bar-container {
+      width: 100%;
+      height: 4px;
+      margin-top: 10px;
+      border-color: rgba(42, 157, 98, 0.35);
+    }
+
+    .progress-bar-fill,
+    .meter-fill,
+    .loading-bar {
+      height: 100%;
+      background: var(--terminal-text);
+      box-shadow: 0 0 10px var(--terminal-glow);
+      width: 0%;
+    }
+
+    .slide-content {
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      padding: 18px 28px 20px 28px;
+      overflow: visible;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.28fr) minmax(320px, 0.72fr);
+      align-items: stretch;
+      gap: 18px;
+    }
+
+    .main-column {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      min-width: 0;
+      min-height: 0;
+    }
+
+    .section-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      min-width: 0;
+      min-height: 0;
+    }
+
+    .comparison-card {
+      border: 1px solid var(--terminal-text-darker);
+      padding: 12px 14px;
+      background: rgba(61, 220, 132, 0.03);
+      position: relative;
+      min-width: 0;
+    }
+
+    .comparison-card::before {
+      content: attr(data-tag);
+      position: absolute;
+      top: -10px;
+      left: 12px;
+      background: var(--terminal-bg);
+      padding: 0 10px;
+      font-size: 0.72rem;
+      color: var(--terminal-text-darker);
+      letter-spacing: 0.08em;
+    }
+
+    .comparison-card.warning-mode {
+      border-color: var(--glitch-color-1);
+      background: rgba(199, 52, 126, 0.05);
+      box-shadow: inset 0 0 30px rgba(199, 52, 126, 0.18);
+    }
+
+    .comparison-card.info-mode {
+      border-color: var(--glitch-color-2);
+      background: rgba(62, 138, 214, 0.05);
+      box-shadow: inset 0 0 22px rgba(62, 138, 214, 0.12);
+    }
+
+    .comparison-card.stable-mode {
+      border-color: var(--terminal-text-darker);
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .step-tag {
+      font-size: 0.72rem;
+      color: var(--terminal-text-darker);
+      text-transform: uppercase;
+      margin-bottom: 2px;
+      display: block;
+      letter-spacing: 0.1em;
+    }
+
+    .panel-title {
+      font-size: 1.06rem;
+      margin: 0;
+      line-height: 1.25;
+      font-weight: 600;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .status-tag {
+      display: inline-block;
+      padding: 2px 6px;
+      font-size: 0.68rem;
+      border: 1px solid currentColor;
+      vertical-align: middle;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      background: transparent;
+      line-height: 1.45;
+    }
+
+    .status-positive {
+      color: var(--terminal-text);
+      border-color: var(--terminal-text);
+      background: rgba(61, 220, 132, 0.1);
+    }
+
+    .status-neutral {
+      color: var(--terminal-text-darker);
+      border-color: var(--terminal-text-darker);
+    }
+
+    .status-blue {
+      color: var(--glitch-color-2);
+      border-color: var(--glitch-color-2);
+      background: rgba(62, 138, 214, 0.08);
+    }
+
+    .status-danger {
+      color: var(--glitch-color-1);
+      border-color: var(--glitch-color-1);
+      background: rgba(199, 52, 126, 0.08);
+    }
+
+    .chart-shell {
+      margin-top: 10px;
+      height: 260px;
+      border: 1px solid rgba(42, 157, 98, 0.45);
+      background: rgba(0,0,0,0.16);
+      position: relative;
+    }
+
+    .chart-stage {
+      margin-top: 10px;
+      position: relative;
+    }
+
+    .chart-pane {
+      display: none;
+    }
+
+    .chart-pane.active {
+      display: block;
+    }
+
+    .view-toggle {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .view-toggle .terminal-button {
+      width: auto;
+      min-width: 120px;
+    }
+
+    svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      overflow: hidden;
+    }
+
+    .control-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px 14px;
+      margin-top: 10px;
+    }
+
+    .control-block {
+      border-left: 2px solid var(--terminal-text-darker);
+      padding-left: 10px;
+      min-width: 0;
+    }
+
+    .control-label {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 0.72rem;
+      color: var(--terminal-text-darker);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .control-value {
+      color: #fff;
+    }
+
+    .terminal-select,
+    .terminal-button {
+      width: 100%;
+      background: var(--terminal-bg);
+      color: var(--terminal-text);
+      border: 1px solid var(--terminal-text-darker);
+      border-radius: 0;
+      outline: none;
+      font-family: inherit;
+    }
+
+    .terminal-select {
+      padding: 8px 10px;
+      appearance: none;
+    }
+
+    .terminal-select:focus,
+    .terminal-button:focus,
+    input[type="range"]:focus {
+      outline: 1px solid var(--terminal-text);
+      outline-offset: 2px;
+    }
+
+    .terminal-button {
+      padding: 7px 10px;
+      cursor: pointer;
+      box-shadow: 4px 4px 0px var(--terminal-text-darker);
+      text-transform: uppercase;
+      font-size: 0.72rem;
+      font-weight: bold;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+    }
+
+    .terminal-button:hover {
+      transform: translate(-1px, -1px);
+    }
+
+    .terminal-button.active {
+      background: var(--terminal-text);
+      color: var(--terminal-bg);
+      border-color: var(--terminal-text);
+      box-shadow: 0 0 15px var(--terminal-glow);
+    }
+
+    .control-actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .control-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+      margin-bottom: 6px;
+    }
+
+    .web-runtime-active .control-meta {
+      display: none;
+    }
+
+    .runtime-panel {
+      margin-top: 12px;
+      margin-bottom: 12px;
+      border: 1px solid rgba(42, 157, 98, 0.45);
+      background: rgba(0, 0, 0, 0.22);
+      padding: 10px 12px 12px;
+    }
+
+    .runtime-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .runtime-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .runtime-label {
+      display: block;
+      font-size: 0.72rem;
+      color: var(--terminal-text-darker);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .runtime-actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .runtime-actions .terminal-button {
+      text-align: center;
+      text-decoration: none;
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .control-stream {
+      margin-top: 14px;
+      border-top: 1px dashed rgba(42, 157, 98, 0.45);
+      padding-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 176px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      overscroll-behavior: contain;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+    .control-stream::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+      display: none;
+    }
+
+    .stream-line {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      font-size: 0.78rem;
+      line-height: 1.5;
+      color: rgba(61, 220, 132, 0.9);
+    }
+
+    .stream-prefix {
+      color: var(--terminal-text-darker);
+      white-space: nowrap;
+    }
+
+    .stream-agent {
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    .stream-text {
+      min-width: 0;
+      word-break: break-word;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      height: 18px;
+      margin: 0;
+      padding: 0;
+      border: 1px solid var(--terminal-text-darker);
+      background: transparent;
+      accent-color: var(--terminal-text);
+      appearance: none;
+      -webkit-appearance: none;
+      --slider-fill: var(--terminal-text);
+      --slider-block-a: var(--terminal-text-darker);
+      --slider-block-b: rgba(42, 157, 98, 0.22);
+    }
+
+    input[type="range"]::-webkit-slider-runnable-track {
+      height: 16px;
+      border: none;
+      background:
+        repeating-linear-gradient(
+          90deg,
+          var(--slider-block-a) 0 12px,
+          var(--slider-block-b) 12px 16px
+        );
+    }
+
+    input[type="range"]::-moz-range-track {
+      height: 16px;
+      border: none;
+      background:
+        repeating-linear-gradient(
+          90deg,
+          var(--slider-block-a) 0 12px,
+          var(--slider-block-b) 12px 16px
+        );
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 12px;
+      height: 18px;
+      margin-top: -1px;
+      border: 1px solid var(--slider-fill);
+      background: var(--terminal-bg);
+      box-shadow: 3px 3px 0px var(--slider-fill);
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 12px;
+      height: 18px;
+      border: 1px solid var(--slider-fill);
+      border-radius: 0;
+      background: var(--terminal-bg);
+      box-shadow: 3px 3px 0px var(--slider-fill);
+    }
+
+    input.slider-round {
+      --slider-fill: var(--terminal-text);
+      --slider-block-a: var(--terminal-text);
+      --slider-block-b: rgba(42, 157, 98, 0.22);
+    }
+
+    input.slider-shock {
+      --slider-fill: var(--warning-orange);
+      --slider-block-a: var(--warning-orange);
+      --slider-block-b: var(--warning-orange-deep);
+    }
+
+    input.slider-bias {
+      --slider-fill: var(--glitch-color-2);
+      --slider-block-a: var(--terminal-text-darker);
+      --slider-block-b: var(--glitch-color-2);
+    }
+
+    .focus-params {
+      margin-top: 10px;
+      border-left: 3px solid var(--terminal-text-darker);
+      padding-left: 12px;
+    }
+
+    .focus-card .param-line {
+      margin-bottom: 6px;
+    }
+
+    .focus-copy {
+      margin-top: 10px;
+      font-size: 0.86rem;
+      line-height: 1.45;
+      color: rgba(61, 220, 132, 0.9);
+    }
+
+    .focus-log,
+    .event-log {
+      margin-top: 12px;
+      padding-right: 0;
+    }
+
+    .focus-log {
+      max-height: none;
+      overflow: visible;
+    }
+
+    .event-log {
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-right: 4px;
+      padding-bottom: 2px;
+      overscroll-behavior: contain;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+    .event-log::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+      display: none;
+    }
+
+    .event-panel {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .event-panel .event-log {
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    .log-section {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .log-entry {
+      border-left: 3px solid var(--terminal-text-darker);
+      padding-left: 12px;
+      position: relative;
+      transition: transform 0.18s ease, border-color 0.18s ease;
+    }
+
+    .log-entry.clickable {
+      cursor: pointer;
+    }
+
+    .log-entry.clickable:hover {
+      transform: translateX(2px);
+    }
+
+    .log-label {
+      font-size: 0.72rem;
+      color: var(--terminal-text-darker);
+      text-transform: uppercase;
+      margin-bottom: 5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      letter-spacing: 0.06em;
+    }
+
+    .log-body {
+      font-size: 0.88rem;
+      line-height: 1.42;
+      margin: 0;
+      word-break: break-word;
+    }
+
+    .muted-copy {
+      display: block;
+      margin-top: 4px;
+      color: var(--terminal-text-darker);
+      font-size: 0.78rem;
+      line-height: 1.34;
+    }
+
+    .agent-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .agent-section-copy {
+      margin-top: 8px;
+      font-size: 0.8rem;
+      color: rgba(61, 220, 132, 0.88);
+      line-height: 1.5;
+    }
+
+    .agent-card {
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+      border-left: 4px solid var(--agent-color, var(--terminal-text-darker));
+    }
+
+    .agent-card:hover {
+      transform: translateY(-2px);
+    }
+
+    .agent-card.active {
+      box-shadow: 0 0 15px rgba(61, 220, 132, 0.18);
+    }
+
+    .flow-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 10px 0 8px;
+    }
+
+    .flow-node {
+      border: 1px solid currentColor;
+      padding: 4px 8px;
+      text-align: center;
+      min-width: 68px;
+      font-size: 0.72rem;
+      background: rgba(0,0,0,0.25);
+      line-height: 1.4;
+    }
+
+    .agent-copy {
+      margin-top: 8px;
+      font-size: 0.8rem;
+      line-height: 1.4;
+      color: rgba(61, 220, 132, 0.88);
+    }
+
+    .agent-params {
+      margin-top: 8px;
+      border-left: 3px solid rgba(42, 157, 98, 0.7);
+      padding-left: 10px;
+    }
+
+    .agent-params .param-line {
+      margin-bottom: 4px;
+      font-size: 0.74rem;
+    }
+
+    .slide-footer {
+      padding: 8px 18px;
+      background: var(--terminal-text-darker);
+      color: var(--terminal-bg);
+      font-size: 0.72rem;
+      font-weight: bold;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px 10px;
+      text-shadow: none;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .empty-log {
+      color: var(--terminal-text-darker);
+      font-size: 0.78rem;
+      line-height: 1.4;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    @media (max-width: 1220px) {
+      .hero-grid {
+        grid-template-columns: 1fr;
+      }
+      .header-grid {
+        grid-template-columns: 1fr;
+      }
+      .slide-subtitle {
+        justify-self: start;
+        max-width: 72ch;
+      }
+      .summary-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 900px) {
+      .agent-grid {
+        grid-template-columns: 1fr;
+      }
+      .summary-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .shell {
+        width: min(calc(100vw - 12px), 1480px);
+        margin: 6px auto;
+      }
+
+      .slide-header,
+      .summary-row,
+      .slide-content {
+        padding-left: 18px;
+        padding-right: 18px;
+      }
+
+      .control-grid,
+      .control-actions,
+      .runtime-grid,
+      .runtime-actions {
+        grid-template-columns: 1fr;
+      }
+
+      .slide-footer {
+        justify-content: flex-start;
+      }
+    }
+  </style>
+</head>
+<body class="">
+  <div class="shell">
+    <div class="slide-container">
+      <header class="slide-header">
+        <div class="header-grid">
+          <div class="title-block">
+            <div class="page-kicker">PJ-AG4 / Strategy Dashboard</div>
+            <h1 class="slide-title glitch-effect" data-text="GPU adaptive market">GPU adaptive market<span class="cursor"></span></h1>
+          </div>
+          <p class="slide-subtitle">Executive view for the GPU market sandbox: customer migration, SLA backlog, peer transfer, reputation feedback, and LLM-guided agent adaptation.</p>
+        </div>
+      </header>
+
+      <section class="summary-row">
+        <article class="comparison-card metric-card stable-mode" data-tag="[MARKET_PNL]">
+          <span class="step-tag">Cumulative market payoff</span>
+          <strong class="metric-value" id="kpi-profit">+0.0</strong>
+          <p class="metric-copy">Net payoff after production, transfers, holding cost, and SLA penalties.</p>
+        </article>
+
+        <article class="comparison-card metric-card stable-mode" data-tag="[FULFILLMENT]">
+          <span class="step-tag">Delivered vs true demand</span>
+          <strong class="metric-value" id="kpi-fulfillment">0%</strong>
+          <div class="progress-block">
+            <div class="progress-bar-container">
+              <div class="progress-bar-fill" id="kpi-fulfillment-bar"></div>
+            </div>
+          </div>
+        </article>
+
+        <article class="comparison-card metric-card stable-mode" data-tag="[WINNER]">
+          <span class="step-tag">Current winner</span>
+          <strong class="metric-value" id="kpi-winner">--</strong>
+          <p class="metric-copy">Final cumulative payoff leader under this scenario.</p>
+        </article>
+
+        <article class="comparison-card metric-card stable-mode" data-tag="[TRANSFER_VOL]">
+          <span class="step-tag">Transfer / backlog pressure</span>
+          <strong class="metric-value" id="kpi-transfer">0.0</strong>
+          <p class="metric-copy" id="kpi-stress-copy">Cross-agent support and SLA queue pressure.</p>
+        </article>
+      </section>
+
+      <main class="slide-content">
+        <div class="hero-grid" id="hero-grid">
+          <div class="main-column" id="main-column">
+            <article class="comparison-card stable-mode" data-tag="[TELEMETRY_VIEWPORT]">
+              <div class="panel-header">
+                <div>
+                  <span class="step-tag">Shared chart bay</span>
+                  <h2 class="panel-title" id="chart-panel-title">Demand / sales / projected shock trace</h2>
+                </div>
+                <div class="view-toggle">
+                  <button type="button" class="terminal-button active" data-chart-view="market">Market view</button>
+                  <button type="button" class="terminal-button" data-chart-view="agent">Agent view</button>
+                </div>
+              </div>
+              <div class="legend" id="chart-panel-legend"></div>
+              <div class="chart-stage">
+                <div class="chart-pane active" id="market-pane">
+                  <div class="system-message-box" id="market-readout">&gt; awaiting market trace</div>
+                  <div class="chart-shell">
+                    <svg id="market-chart" role="img" aria-label="Market chart"></svg>
+                  </div>
+                </div>
+                <div class="chart-pane" id="agent-pane">
+                  <div class="system-message-box" id="agent-readout">&gt; awaiting agent trace</div>
+                  <div class="chart-shell">
+                    <svg id="agent-chart" role="img" aria-label="Agent chart"></svg>
+                  </div>
+                </div>
+              </div>
+            </article>
+            <article class="comparison-card stable-mode focus-card" id="focus-panel" data-tag="[ROUND_INSPECTOR]">
+            <div class="panel-header">
+              <div>
+                <span class="step-tag">Focused round</span>
+                <h2 class="panel-title" id="focus-round-label">R0</h2>
+              </div>
+              <span class="status-tag status-neutral" id="detail-regime-tag">Stable</span>
+            </div>
+
+            <p class="focus-copy" id="focus-round-copy">Demand and execution details for the selected round.</p>
+
+            <div class="focus-params">
+              <div class="param-line"><span class="param-label">Regime</span><span class="param-value" id="detail-regime">Controlled market</span></div>
+              <div class="param-line"><span class="param-label">Spread</span><span class="param-value" id="detail-spread">0.00</span></div>
+              <div class="param-line"><span class="param-label">Demand gap</span><span class="param-value" id="detail-gap">0.0</span></div>
+              <div class="param-line"><span class="param-label">Shock</span><span class="param-value" id="detail-shock">0.0</span></div>
+              <div class="param-line"><span class="param-label">Transfer</span><span class="param-value" id="detail-transfer">0.0</span></div>
+              <div class="param-line"><span class="param-label">Backlog</span><span class="param-value" id="detail-backlog">0.0</span></div>
+            </div>
+
+            <div class="progress-block">
+              <div class="panel-header">
+                <div class="progress-info">
+                  <span>Round fulfillment</span>
+                  <span id="detail-fulfillment">0%</span>
+                </div>
+              </div>
+              <div class="progress-bar-container">
+                <div class="progress-bar-fill" id="detail-fulfillment-bar"></div>
+              </div>
+            </div>
+
+            <div class="log-section focus-log" id="round-agent-log"></div>
+          </article>
+
+          </div>
+
+          <aside class="section-stack" id="side-column">
+            <article class="comparison-card stable-mode" id="control-panel" data-tag="[CONTROL_SURFACE]">
+              <div class="panel-header">
+                <div>
+                  <span class="step-tag">Scenario rail</span>
+                  <h2 class="panel-title">Simulation controls</h2>
+                </div>
+                <span class="status-tag status-neutral">Projection only</span>
+              </div>
+
+              <div class="control-meta">
+                <span class="status-tag status-neutral" id="hero-strategy">heuristic</span>
+                <span class="status-tag status-neutral">Seed <span id="hero-seed">7</span></span>
+                <span class="status-tag status-neutral">Rounds <span id="hero-rounds">30</span></span>
+                <span class="status-tag status-neutral">Agents <span id="hero-agents">3</span></span>
+              </div>
+
+
+
+              <div class="control-grid">
+                <div class="control-block">
+                  <label class="control-label" for="round-slider"><span>Round focus</span><span class="control-value" id="round-slider-value">R0</span></label>
+                  <input id="round-slider" class="slider-round" type="range" min="0" max="0" step="1" value="0" />
+                </div>
+
+                <div class="control-block">
+                  <label class="control-label" for="agent-select"><span>Agent focus</span><span class="control-value" id="agent-select-value">all</span></label>
+                  <select id="agent-select" class="terminal-select"></select>
+                </div>
+
+                <div class="control-block">
+                  <label class="control-label" for="metric-select"><span>Agent metric</span><span class="control-value" id="metric-select-value">cumProfit</span></label>
+                  <select id="metric-select" class="terminal-select">
+                    <option value="cumProfit">Cumulative profit</option>
+                    <option value="profit">Round profit</option>
+                    <option value="reputation">Reputation</option>
+                    <option value="serviceRate">Service rate</option>
+                    <option value="price">Price</option>
+                    <option value="quantity">Quantity</option>
+                  </select>
+                </div>
+
+                <div class="control-block">
+                  <label class="control-label" for="shock-scale"><span>Shock scale</span><span class="control-value" id="shock-scale-value">0.0x</span></label>
+                  <input id="shock-scale" class="slider-shock" type="range" min="-2" max="2" step="0.1" value="0" />
+                </div>
+
+                <div class="control-block">
+                  <label class="control-label" for="demand-bias"><span>Demand bias</span><span class="control-value" id="demand-bias-value">+0</span></label>
+                  <input id="demand-bias" class="slider-bias" type="range" min="-40" max="40" step="1" value="0" />
+                </div>
+              </div>
+
+              <div class="control-actions">
+                <button type="button" class="terminal-button active" data-toggle="shocks">Shocks</button>
+                <button type="button" class="terminal-button active" data-toggle="defaults">Defaults</button>
+                <button type="button" class="terminal-button active" data-toggle="dumps">Dumps</button>
+                <button type="button" class="terminal-button active" data-toggle="transfers">Transfers</button>
+              </div>
+
+              <div class="control-stream" id="control-stream"></div>
+            </article>
+            <article class="comparison-card stable-mode event-panel" id="event-panel" data-tag="[EVENT_TAPE]">
+              <div class="panel-header">
+                <div>
+                  <span class="step-tag">Event stream</span>
+                  <h2 class="panel-title">Highest-impact moments</h2>
+                </div>
+              </div>
+              <div class="log-section event-log" id="event-list"></div>
+            </article>
+          </aside>
+        </div>
+
+        <section class="comparison-card stable-mode" data-tag="[MODEL_DETAIL_RACK]">
+          <div class="panel-header">
+            <div>
+              <span class="step-tag">Model detail rack</span>
+              <h2 class="panel-title">Agent profiles / click to focus</h2>
+            </div>
+          </div>
+          <p class="agent-section-copy">Keep all three models visible. Clicking any model card updates agent focus across the chart view, controls, footer, and round inspector.</p>
+          <section class="agent-grid" id="agent-grid"></section>
+        </section>
+      </main>
+
+      <footer class="slide-footer" id="footer-bar">
+        <span id="footer-node">NODE: R0</span>
+        <span id="footer-total">TOTAL: 0</span>
+        <span id="footer-status">STATUS: STABLE</span>
+        <span id="footer-agent">AGENT: ALL</span>
+        <span id="footer-metric">METRIC: CUMPROFIT</span>
+      </footer>
+    </div>
+  </div>
+
+  <script id="dashboard-data" type="application/json">{"schemaVersion":"dashboard.v1","meta":{"seed":7,"strategy":"llm-context","scenario":"baseline","rounds":12,"agents":["Hyperscaler","PremiumCloud","SpotBroker"],"title":"PJ-AG4 Strategy Sandbox"},"overview":{"winner":"PremiumCloud","totalDemand":2298.0,"totalSales":2227.261955582551,"fulfillmentRatio":0.9692175611760447,"avgPrice":5.7,"totalProfit":3430.2136746667265,"transferVolume":6.153722552168034,"reallocatedVolume":98.939977207959,"backlogEnd":0.8206365963960058,"lateUnits":0.0,"defaultEvents":6,"dumpEvents":10,"shockRounds":0,"avgDemandGap":2.5,"rounds":12},"market":{"rounds":[0,1,2,3,4,5,6,7,8,9,10,11],"demand":[181.0,197.0,198.0,202.0,193.0,182.0,171.0,194.0,196.0,200.0,198.0,186.0],"sales":[170.0,173.8423519645747,196.0808663082926,191.65799577107143,193.0,182.0,171.0,194.0,181.88277955254352,194.1582758531514,195.726950089331,183.91273604358628],"avgPrice":[5.266666666666667,5.533333333333334,5.666666666666667,5.733333333333333,5.8,5.733333333333333,5.666666666666667,5.733333333333333,5.733333333333333,5.866666666666667,5.866666666666667,5.8],"shock":[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0],"transferVolume":[0.0,0.0,2.571190301805629,0.0,0.0,0.0,2.8088762454108434,0.0,0.0,0.7736560049515617,0.0,0.0]},"agents":[{"name":"Hyperscaler","role":"Scale-dominant","persona":"Scale-dominant operator that values throughput, market share, and capacity continuity.","color":"#3ddc84","surface":"rgba(61, 220, 132, 0.16)","summary":{"cumulativeProfit":1040.8926730626388,"meanProfit":86.74105608855322,"profitVolatility":47.72070861534986,"avgReputation":0.6578583031892777,"avgDeliveryReputation":0.9152716808021069,"avgPricingReputation":0.2950123759607474,"avgCooperationReputation":0.55859375,"avgServiceRate":1.0,"avgForecastError":7.166666666666667,"avgPrice":4.6,"totalShortage":0.0,"transferAttempts":2.0,"transferAccepts":0.0,"defaults":0.0,"dumps":10.0},"series":{"rounds":[0,1,2,3,4,5,6,7,8,9,10,11],"price":[4.6,4.6,4.6,4.6,4.6,4.6,4.6,4.6,4.6,4.6,4.6,4.6],"quantity":[70,120,120,120,120,120,110,120,100,120,120,120],"profit":[213.24999999999994,84.0,84.0,84.0,83.93685807724025,82.461837196283,50.874561304670934,47.53211663093456,139.66078594170028,84.0,74.55500000000006,12.621513911809716],"cumProfit":[213.24999999999994,297.24999999999994,381.24999999999994,465.24999999999994,549.1868580772402,631.6486952735232,682.5232565781942,730.0553732091287,869.716159150829,953.716159150829,1028.2711591508291,1040.8926730626388],"reputation":[0.7200000000000001,0.6975000000000001,0.680625,0.66796875,0.6584765625000001,0.651357421875,0.6135180664062501,0.6095135498046875,0.6815101623535157,0.6605076217651368,0.6447557163238526,0.6085667872428894],"repDelivery":[0.7375,0.8031250000000001,0.8523437500000001,0.8892578125,0.916943359375,0.9377075195312501,0.9532806396484376,0.9649604797363281,0.9737203598022461,0.9802902698516847,0.9852177023887635,0.9889132767915726],"repPricing":[0.7375,0.5531250000000001,0.41484375000000007,0.3111328125,0.23334960937500002,0.17501220703125,0.1312591552734375,0.09844436645507813,0.3238332748413086,0.24287495613098142,0.18215621709823607,0.13661716282367706],"repCooperation":[0.65,0.65,0.65,0.65,0.65,0.65,0.48750000000000004,0.48750000000000004,0.48750000000000004,0.48750000000000004,0.48750000000000004,0.36562500000000003],"serviceRate":[1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0],"forecastError":[3.0,9.0,10.0,8.0,12.0,2.0,1.0,16.0,9.0,5.0,7.0,4.0],"priceAggressiveness":[null,null,null,null,null,null,null,null,null,null,null,null],"inventoryCaution":[null,null,null,null,null,null,null,null,null,null,null,null]}},{"name":"PremiumCloud","role":"SLA-first","persona":"SLA-first premium operator that protects brand, uptime, and disciplined monetization.","color":"#3e8ad6","surface":"rgba(62, 138, 214, 0.16)","summary":{"cumulativeProfit":1523.2444890451584,"meanProfit":126.93704075376317,"profitVolatility":31.790510818767146,"avgReputation":0.853979614157197,"avgDeliveryReputation":0.7716215103938524,"avgPricingReputation":0.9636878632009029,"avgCooperationReputation":0.8953125,"avgServiceRate":0.9172931658272384,"avgForecastError":5.25,"avgPrice":6.8,"totalShortage":42.07125346613184,"transferAttempts":2.0,"transferAccepts":2.0,"defaults":3.0,"dumps":0.0},"series":{"rounds":[0,1,2,3,4,5,6,7,8,9,10,11],"price":[6.4,6.6,6.8,6.8,6.8,6.8,6.8,6.8,6.8,7.0,7.0,7.0],"quantity":[0,30,50,30,40,30,40,40,40,40,40,40],"profit":[207.48,64.06447686224125,141.12216757044075,105.09120907334294,121.56234800257347,103.21654530241591,117.04323615025595,138.57749629307665,122.27638744188407,133.53525506883645,134.2782021513657,134.997165128725],"cumProfit":[207.48,271.54447686224125,412.666644432682,517.757853506025,639.3202015085984,742.5367468110144,859.5799829612704,998.157479254347,1120.433866696231,1253.9691217650675,1388.2473239164333,1523.2444890451584],"reputation":[0.787608695652174,0.7164468869517743,0.7873351652138306,0.7551652605755425,0.8107489454316568,0.8524367090737426,0.8893275318053069,0.9127768988539802,0.9194781626627231,0.9292537528521525,0.9391344857877928,0.9480428750256884],"repDelivery":[0.7027173913043478,0.5435187739035484,0.6576390804276613,0.5838070836510849,0.6878553127383137,0.7658914845537352,0.8244186134153014,0.8683139600614761,0.8794639470905831,0.8973257220281575,0.9158201338184752,0.9326866217335438],"repPricing":[0.8875,0.9156249999999999,0.9367187499999999,0.9525390625,0.964404296875,0.9733032226562499,0.9799774169921874,0.9849830627441406,0.9887372970581054,0.991552972793579,0.9936647295951843,0.9952485471963882],"repCooperation":[0.85,0.85,0.8875,0.8875,0.8875,0.8875,0.9156249999999999,0.9156249999999999,0.9156249999999999,0.9156249999999999,0.9156249999999999,0.9156249999999999],"serviceRate":[0.7608695652173914,0.5659229217011502,1.0,0.862311093321356,1.0,1.0,1.0,1.0,0.9129139081779042,0.9509110468408811,0.9713033691894282,0.9832860854787496],"forecastError":[1.0,9.0,3.0,2.0,3.0,3.0,9.0,6.0,9.0,10.0,6.0,2.0],"priceAggressiveness":[null,null,null,null,null,null,null,null,null,null,null,null],"inventoryCaution":[null,null,null,null,null,null,null,null,null,null,null,null]}},{"name":"SpotBroker","role":"Volatility hunter","persona":"Fast-moving spot broker that hunts volatility and preserves light, flexible inventory.","color":"#c7347e","surface":"rgba(199, 52, 126, 0.16)","summary":{"cumulativeProfit":866.0765125589296,"meanProfit":72.17304271324414,"profitVolatility":15.467084837748946,"avgReputation":0.7526677653016178,"avgDeliveryReputation":0.7394473768416103,"avgPricingReputation":0.8910635896027088,"avgCooperationReputation":0.578125,"avgServiceRate":0.9402213185123447,"avgForecastError":2.9166666666666665,"avgPrice":5.7,"totalShortage":28.66679095131721,"transferAttempts":1.0,"transferAccepts":1.0,"defaults":3.0,"dumps":0.0},"series":{"rounds":[0,1,2,3,4,5,6,7,8,9,10,11],"price":[4.8,5.4,5.6,5.8,6.0,5.8,5.6,5.8,5.8,6.0,6.0,5.8],"quantity":[20,30,40,40,40,30,30,40,30,40,40,40],"profit":[94.397,44.05104427333803,67.13949313599967,74.84422779800573,79.24801847876148,71.0055279981085,52.06833058206729,81.594,49.0080776353404,84.83385232726133,88.13725991828002,79.7496804117672],"cumProfit":[94.397,138.44804427333804,205.5875374093377,280.43176520734346,359.67978368610494,430.68531168421345,482.75364226628074,564.3476422662807,613.3557199016211,698.1895722288824,786.3268321471625,866.0765125589296],"reputation":[0.64,0.6275424050045498,0.6925217320121073,0.6698386315406339,0.7298789736554755,0.7749092302416066,0.8086819226812049,0.8340114420109036,0.7585572764208953,0.8066806836304785,0.8346193106033397,0.8547715758182182],"repDelivery":[0.6625000000000001,0.5869598100090997,0.6789497140242147,0.605106950581268,0.7038302129359509,0.7778726597019632,0.8334044947764724,0.8750533710823543,0.7173874181372009,0.7635660162325145,0.8156421079353476,0.8530957666829375],"repPricing":[0.6625000000000001,0.7468750000000001,0.81015625,0.8576171875,0.8932128906250001,0.9199096679687501,0.9399322509765625,0.9549491882324219,0.9662118911743165,0.9746589183807374,0.980994188785553,0.9857456415891648],"repCooperation":[0.55,0.55,0.55,0.55,0.55,0.55,0.55,0.55,0.55,0.6625000000000001,0.6625000000000001,0.6625000000000001],"serviceRate":[1.0,0.8603392400363986,0.9549194260695593,0.8835786602524277,1.0,1.0,1.0,1.0,0.7443895593017411,0.9021018105184555,0.9718703830438468,0.9654567429257073],"forecastError":[1.0,3.0,2.0,6.0,2.0,2.0,1.0,4.0,11.0,0.0,2.0,1.0],"priceAggressiveness":[null,null,null,null,null,null,null,null,null,null,null,null],"inventoryCaution":[null,null,null,null,null,null,null,null,null,null,null,null]}}],"roundsData":[{"round":0,"demandTrue":181.0,"demandObserved":184.0,"demandGap":3.0,"marketAvgPrice":5.266666666666667,"marketTotalSales":170.0,"fulfillmentRatio":0.9392265193370166,"shockComponent":0.0,"trendComponent":180.0,"seasonComponent":2.9552020666133956,"noiseComponent":-1.791162019133203,"transferVolume":0.0,"defaultCount":1,"dumpCount":0,"backlogTotal":6.157648035425304,"reallocatedVolume":23.807888132334725,"agentSpread":1.8000000000000007,"roundTrace":{"round_index":0,"demand_true":181.0,"demand_observed":184.0,"market_total_sales":170.0,"market_avg_price":5.266666666666667,"transfer_volume":0.0,"default_count":1,"dump_count":0,"backlog_total":6.157648035425304,"summary":"R0: demand 181, sales 170, transfer 0.0, backlog 6.2, defaults 1, dumps 0"},"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=184;price=4.60;quantity=70","decisionSource":"llm-context","decisionReason":"forecast 184.0 + 0.0; price 4.60 + 0.00; quantity target 80.0; risk gate inventory target capped quantity; final forecast=184, price=4.60, quantity=70","decisionTrace":{"source":"llm-context","summary":"forecast 184.0 + 0.0; price 4.60 + 0.00; quantity target 80.0; risk gate inventory target capped quantity; final forecast=184, price=4.60, quantity=70","forecast_base":184.0,"forecast_adjustment":0.0,"price_base":4.6,"price_adjustment":0.0,"quantity_target":80.0,"risk_gate_adjustment":"inventory target capped quantity","final_forecast":184,"final_price":4.6,"final_quantity":70,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"Hyperscaler\",\"agent_role\":\"hyperscaler\",\"agent_persona\":\"Scale-dominant operator that values throughput, market share, and capacity continuity.\",\"stage_styles\":{\"forecaster\":\"momentum_chaser\",\"pricer\":\"share_grabber\",\"allocator\":\"capacity_expander\",\"risk_gate\":\"growth_tolerant\"},\"round_index\":0,\"observed_demand\":184,\"observed_demand_history\":[],\"price_history\":[],\"reputation_history\":[],\"peer_reputations\":[[\"Hyperscaler\",0.65],[\"PremiumCloud\",0.85],[\"SpotBroker\",0.55]],\"own_invent"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":4.6,"quantity":70,"forecastDemand":184,"forecastError":3.0,"allocatedDemand":100.0,"realizedSales":100.0,"shortage":0.0,"profit":213.24999999999994,"cumProfit":213.24999999999994,"reputation":0.7200000000000001,"repDelivery":0.7375,"repPricing":0.7375,"repCooperation":0.65,"reputationComponents":{"delivery":0.7375,"pricing":0.7375,"cooperation":0.65},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":81.45,"enterprise_sla":63.349999999999994,"spot_workload":36.2},"segmentAllocations":{"training_burst":42.69164313982231,"enterprise_sla":19.07662874390135,"spot_workload":14.423839983941619},"reallocatedIn":23.807888132334725,"reallocatedOut":0.0,"backlogStart":0.0,"newContractDemand":19.297827871105323,"deliveredBacklog":0.0,"backlogEnd":0.0,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=180;price=6.40;quantity=0","decisionSource":"llm-context","decisionReason":"forecast 184.0 + -4.0; price 6.80 + -0.40; quantity target 70.0; risk gate inventory target capped quantity; final forecast=180, price=6.40, quantity=0","decisionTrace":{"source":"llm-context","summary":"forecast 184.0 + -4.0; price 6.80 + -0.40; quantity target 70.0; risk gate inventory target capped quantity; final forecast=180, price=6.40, quantity=0","forecast_base":184.0,"forecast_adjustment":-4.0,"price_base":6.8,"price_adjustment":-0.39999999999999947,"quantity_target":70.0,"risk_gate_adjustment":"inventory target capped quantity","final_forecast":180,"final_price":6.4,"final_quantity":0,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"PremiumCloud\",\"agent_role\":\"premium\",\"agent_persona\":\"SLA-first premium operator that protects brand, uptime, and disciplined monetization.\",\"stage_styles\":{\"forecaster\":\"signal_smoother\",\"pricer\":\"premium_keeper\",\"allocator\":\"buffered_allocator\",\"risk_gate\":\"sla_guard\"},\"round_index\":0,\"observed_demand\":184,\"observed_demand_history\":[],\"price_history\":[],\"reputation_history\":[],\"peer_reputations\":[[\"Hyperscaler\",0.65],[\"PremiumCloud\",0.85],[\"SpotBroker\",0.55]],\"own_inventory\":35."},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":6.4,"quantity":0,"forecastDemand":180,"forecastError":1.0,"allocatedDemand":46.0,"realizedSales":35.0,"shortage":11.0,"profit":207.48,"cumProfit":207.48,"reputation":0.787608695652174,"repDelivery":0.7027173913043478,"repPricing":0.8875,"repCooperation":0.85,"reputationComponents":{"delivery":0.7027173913043478,"pricing":0.8875,"cooperation":0.85},"serviceRate":0.7608695652173914,"transferIn":0.0,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":81.45,"enterprise_sla":63.349999999999994,"spot_workload":36.2},"segmentAllocations":{"training_burst":13.25007469890426,"enterprise_sla":32.40990091253533,"spot_workload":2.3546271497324422},"reallocatedIn":0.0,"reallocatedOut":2.0146027611720285,"backlogStart":0.0,"newContractDemand":25.750164511778543,"deliveredBacklog":0.0,"backlogEnd":6.157648035425304,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":0,"defaultFlag":1},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=180;price=4.80;quantity=20","decisionSource":"llm-context","decisionReason":"forecast 184.0 + -4.0; price 5.00 + -0.20; quantity target 20.0; risk gate none; final forecast=180, price=4.80, quantity=20","decisionTrace":{"source":"llm-context","summary":"forecast 184.0 + -4.0; price 5.00 + -0.20; quantity target 20.0; risk gate none; final forecast=180, price=4.80, quantity=20","forecast_base":184.0,"forecast_adjustment":-4.0,"price_base":5.0,"price_adjustment":-0.20000000000000018,"quantity_target":20.0,"risk_gate_adjustment":"none","final_forecast":180,"final_price":4.8,"final_quantity":20,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"SpotBroker\",\"agent_role\":\"spot\",\"agent_persona\":\"Fast-moving spot broker that hunts volatility and preserves light, flexible inventory.\",\"stage_styles\":{\"forecaster\":\"volatility_reader\",\"pricer\":\"spread_hunter\",\"allocator\":\"inventory_light\",\"risk_gate\":\"inventory_guard\"},\"round_index\":0,\"observed_demand\":184,\"observed_demand_history\":[],\"price_history\":[],\"reputation_history\":[],\"peer_reputations\":[[\"Hyperscaler\",0.65],[\"PremiumCloud\",0.85],[\"SpotBroker\",0.55]],\"own_inventory\":15."},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":4.8,"quantity":20,"forecastDemand":180,"forecastError":1.0,"allocatedDemand":35.0,"realizedSales":35.0,"shortage":0.0,"profit":94.397,"cumProfit":94.397,"reputation":0.64,"repDelivery":0.6625000000000001,"repPricing":0.6625000000000001,"repCooperation":0.55,"reputationComponents":{"delivery":0.6625000000000001,"pricing":0.6625000000000001,"cooperation":0.55},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":81.45,"enterprise_sla":63.349999999999994,"spot_workload":36.2},"segmentAllocations":{"training_burst":25.50828216127344,"enterprise_sla":11.863470343563312,"spot_workload":19.421532866325943},"reallocatedIn":0.0,"reallocatedOut":21.793285371162696,"backlogStart":0.0,"newContractDemand":12.419507617116125,"deliveredBacklog":0.0,"backlogEnd":0.0,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":0,"defaultFlag":0}]},{"round":1,"demandTrue":197.0,"demandObserved":195.0,"demandGap":-2.0,"marketAvgPrice":5.533333333333334,"marketTotalSales":173.8423519645747,"fulfillmentRatio":0.8824484871298208,"shockComponent":0.0,"trendComponent":180.6,"seasonComponent":18.94984674310608,"noiseComponent":-2.3886960620916744,"transferVolume":0.0,"defaultCount":2,"dumpCount":1,"backlogTotal":11.416516580248729,"reallocatedVolume":16.025618161587232,"agentSpread":2.0,"roundTrace":{"round_index":1,"demand_true":197.0,"demand_observed":195.0,"market_total_sales":173.8423519645747,"market_avg_price":5.533333333333334,"transfer_volume":0.0,"default_count":2,"dump_count":1,"backlog_total":11.416516580248729,"summary":"R1: demand 197, sales 174, transfer 0.0, backlog 11.4, defaults 2, dumps 1"},"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=206;price=4.60;quantity=120","decisionSource":"llm-context","decisionReason":"forecast 184.0 + 22.0; price 4.60 + 0.00; quantity target 120.0; risk gate none; final forecast=206, price=4.60, quantity=120","decisionTrace":{"source":"llm-context","summary":"forecast 184.0 + 22.0; price 4.60 + 0.00; quantity target 120.0; risk gate none; final forecast=206, price=4.60, quantity=120","forecast_base":184.0,"forecast_adjustment":22.0,"price_base":4.6,"price_adjustment":0.0,"quantity_target":120.0,"risk_gate_adjustment":"none","final_forecast":206,"final_price":4.6,"final_quantity":120,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"Hyperscaler\",\"agent_role\":\"hyperscaler\",\"agent_persona\":\"Scale-dominant operator that values throughput, market share, and capacity continuity.\",\"stage_styles\":{\"forecaster\":\"momentum_chaser\",\"pricer\":\"share_grabber\",\"allocator\":\"capacity_expander\",\"risk_gate\":\"growth_tolerant\"},\"round_index\":1,\"observed_demand\":195,\"observed_demand_history\":[184],\"price_history\":[[4.6,6.4,4.8]],\"reputation_history\":[[0.7200000000000001,0.787608695652174,0.64]],\"peer_reputations\":[[\"Hyperscaler\",0"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":4.6,"quantity":120,"forecastDemand":206,"forecastError":9.0,"allocatedDemand":120.0,"realizedSales":120.0,"shortage":0.0,"profit":84.0,"cumProfit":297.24999999999994,"reputation":0.6975000000000001,"repDelivery":0.8031250000000001,"repPricing":0.5531250000000001,"repCooperation":0.65,"reputationComponents":{"delivery":0.8031250000000001,"pricing":0.5531250000000001,"cooperation":0.65},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":88.65,"enterprise_sla":68.94999999999999,"spot_workload":39.400000000000006},"segmentAllocations":{"training_burst":54.99846445413658,"enterprise_sla":27.111396572637407,"spot_workload":21.86452081163878},"reallocatedIn":16.025618161587232,"reallocatedOut":0.0,"backlogStart":0.0,"newContractDemand":26.926619915473655,"deliveredBacklog":0.0,"backlogEnd":0.0,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=188;price=6.60;quantity=30","decisionSource":"llm-context","decisionReason":"forecast 184.0 + 4.0; price 6.60 + 0.00; quantity target 30.0; risk gate sla_guard reduced quantity under SLA/reputation pressure; final forecast=188, price=6.60, quantity=30","decisionTrace":{"source":"llm-context","summary":"forecast 184.0 + 4.0; price 6.60 + 0.00; quantity target 30.0; risk gate sla_guard reduced quantity under SLA/reputation pressure; final forecast=188, price=6.60, quantity=30","forecast_base":184.0,"forecast_adjustment":4.0,"price_base":6.6,"price_adjustment":0.0,"quantity_target":30.0,"risk_gate_adjustment":"sla_guard reduced quantity under SLA/reputation pressure","final_forecast":188,"final_price":6.6,"final_quantity":30,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"PremiumCloud\",\"agent_role\":\"premium\",\"agent_persona\":\"SLA-first premium operator that protects brand, uptime, and disciplined monetization.\",\"stage_styles\":{\"forecaster\":\"signal_smoother\",\"pricer\":\"premium_keeper\",\"allocator\":\"buffered_allocator\",\"risk_gate\":\"sla_guard\"},\"round_index\":1,\"observed_demand\":195,\"observed_demand_history\":[184],\"price_history\":[[4.6,6.4,4.8]],\"reputation_history\":[[0.7200000000000001,0.787608695652174,0.64]],\"peer_reputations\":[[\"Hyperscaler\",0.7200000"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":6.6,"quantity":30,"forecastDemand":188,"forecastError":9.0,"allocatedDemand":42.13003405641386,"realizedSales":23.842351964574696,"shortage":18.287682091839166,"profit":64.06447686224125,"cumProfit":271.54447686224125,"reputation":0.7164468869517743,"repDelivery":0.5435187739035484,"repPricing":0.9156249999999999,"repCooperation":0.85,"reputationComponents":{"delivery":0.5435187739035484,"pricing":0.9156249999999999,"cooperation":0.85},"serviceRate":0.5659229217011502,"transferIn":0.0,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":88.65,"enterprise_sla":68.94999999999999,"spot_workload":39.400000000000006},"segmentAllocations":{"training_burst":12.17297473956405,"enterprise_sla":27.37762068529063,"spot_workload":2.579438631559185},"reallocatedIn":0.0,"reallocatedOut":0.0,"backlogStart":6.157648035425304,"newContractDemand":21.87948491950234,"deliveredBacklog":6.157648035425304,"backlogEnd":9.497382888541319,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":0,"defaultFlag":1},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=200;price=5.40;quantity=30","decisionSource":"llm-context","decisionReason":"forecast 184.0 + 16.0; price 5.00 + 0.40; quantity target 30.0; risk gate none; final forecast=200, price=5.40, quantity=30","decisionTrace":{"source":"llm-context","summary":"forecast 184.0 + 16.0; price 5.00 + 0.40; quantity target 30.0; risk gate none; final forecast=200, price=5.40, quantity=30","forecast_base":184.0,"forecast_adjustment":16.0,"price_base":5.0,"price_adjustment":0.40000000000000036,"quantity_target":30.0,"risk_gate_adjustment":"none","final_forecast":200,"final_price":5.4,"final_quantity":30,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"SpotBroker\",\"agent_role\":\"spot\",\"agent_persona\":\"Fast-moving spot broker that hunts volatility and preserves light, flexible inventory.\",\"stage_styles\":{\"forecaster\":\"volatility_reader\",\"pricer\":\"spread_hunter\",\"allocator\":\"inventory_light\",\"risk_gate\":\"inventory_guard\"},\"round_index\":1,\"observed_demand\":195,\"observed_demand_history\":[184],\"price_history\":[[4.6,6.4,4.8]],\"reputation_history\":[[0.7200000000000001,0.787608695652174,0.64]],\"peer_reputations\":[[\"Hyperscaler\",0.7200000"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":5.4,"quantity":30,"forecastDemand":200,"forecastError":3.0,"allocatedDemand":34.86996594358614,"realizedSales":30.0,"shortage":4.869965943586138,"profit":44.05104427333803,"cumProfit":138.44804427333804,"reputation":0.6275424050045498,"repDelivery":0.5869598100090997,"repPricing":0.7468750000000001,"repCooperation":0.55,"reputationComponents":{"delivery":0.5869598100090997,"pricing":0.7468750000000001,"cooperation":0.55},"serviceRate":0.8603392400363986,"transferIn":0.0,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":88.65,"enterprise_sla":68.94999999999999,"spot_workload":39.400000000000006},"segmentAllocations":{"training_burst":21.478560806299374,"enterprise_sla":14.460982742071954,"spot_workload":14.956040556802039},"reallocatedIn":0.0,"reallocatedOut":16.025618161587232,"backlogStart":0.0,"newContractDemand":13.741395165024004,"deliveredBacklog":0.0,"backlogEnd":1.9191336917074096,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":0,"defaultFlag":1}]},{"round":2,"demandTrue":198.0,"demandObserved":197.0,"demandGap":-1.0,"marketAvgPrice":5.666666666666667,"marketTotalSales":196.0808663082926,"fulfillmentRatio":0.9903074055974374,"shockComponent":0.0,"trendComponent":181.2,"seasonComponent":24.134117409591216,"noiseComponent":-7.585040560200625,"transferVolume":2.571190301805629,"defaultCount":0,"dumpCount":1,"backlogTotal":0.5943596292413682,"reallocatedVolume":3.8721029208518836,"agentSpread":2.2,"roundTrace":{"round_index":2,"demand_true":198.0,"demand_observed":197.0,"market_total_sales":196.0808663082926,"market_avg_price":5.666666666666667,"transfer_volume":2.571190301805629,"default_count":0,"dump_count":1,"backlog_total":0.5943596292413682,"summary":"R2: demand 198, sales 196, transfer 2.6, backlog 0.6, defaults 0, dumps 1"},"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=208;price=4.60;quantity=120","decisionSource":"llm-context","decisionReason":"forecast 198.0 + 10.0; price 4.60 + 0.00; quantity target 120.0; risk gate none; final forecast=208, price=4.60, quantity=120","decisionTrace":{"source":"llm-context","summary":"forecast 198.0 + 10.0; price 4.60 + 0.00; quantity target 120.0; risk gate none; final forecast=208, price=4.60, quantity=120","forecast_base":198.0,"forecast_adjustment":10.0,"price_base":4.6,"price_adjustment":0.0,"quantity_target":120.0,"risk_gate_adjustment":"none","final_forecast":208,"final_price":4.6,"final_quantity":120,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"Hyperscaler\",\"agent_role\":\"hyperscaler\",\"agent_persona\":\"Scale-dominant operator that values throughput, market share, and capacity continuity.\",\"stage_styles\":{\"forecaster\":\"momentum_chaser\",\"pricer\":\"share_grabber\",\"allocator\":\"capacity_expander\",\"risk_gate\":\"growth_tolerant\"},\"round_index\":2,\"observed_demand\":197,\"observed_demand_history\":[184,195],\"price_history\":[[4.6,6.4,4.8],[4.6,6.6,5.4]],\"reputation_history\":[[0.7200000000000001,0.787608695652174,0.64],[0.6975000000000001"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":4.6,"quantity":120,"forecastDemand":208,"forecastError":10.0,"allocatedDemand":120.0,"realizedSales":120.0,"shortage":0.0,"profit":84.0,"cumProfit":381.24999999999994,"reputation":0.680625,"repDelivery":0.8523437500000001,"repPricing":0.41484375000000007,"repCooperation":0.65,"reputationComponents":{"delivery":0.8523437500000001,"pricing":0.41484375000000007,"cooperation":0.65},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":89.10000000000001,"enterprise_sla":69.3,"spot_workload":39.6},"segmentAllocations":{"training_burst":59.72357546067562,"enterprise_sla":32.73170168051359,"spot_workload":24.396669964523102},"reallocatedIn":3.1480528942876873,"reallocatedOut":0.0,"backlogStart":0.0,"newContractDemand":31.740967304678907,"deliveredBacklog":0.0,"backlogEnd":0.0,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=195;price=6.80;quantity=50","decisionSource":"llm-context","decisionReason":"forecast 193.0 + 2.0; price 7.00 + -0.20; quantity target 50.0; risk gate sla_guard reduced quantity under SLA/reputation pressure; inventory target capped quantity; final forecast=195, price=6.80, quantity=50","decisionTrace":{"source":"llm-context","summary":"forecast 193.0 + 2.0; price 7.00 + -0.20; quantity target 50.0; risk gate sla_guard reduced quantity under SLA/reputation pressure; inventory target capped quantity; final forecast=195, price=6.80, quantity=50","forecast_base":193.0,"forecast_adjustment":2.0,"price_base":7.0,"price_adjustment":-0.20000000000000018,"quantity_target":50.0,"risk_gate_adjustment":"sla_guard reduced quantity under SLA/reputation pressure; inventory target capped quantity","final_forecast":195,"final_price":6.8,"final_quantity":50,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"PremiumCloud\",\"agent_role\":\"premium\",\"agent_persona\":\"SLA-first premium operator that protects brand, uptime, and disciplined monetization.\",\"stage_styles\":{\"forecaster\":\"signal_smoother\",\"pricer\":\"premium_keeper\",\"allocator\":\"buffered_allocator\",\"risk_gate\":\"sla_guard\"},\"round_index\":2,\"observed_demand\":197,\"observed_demand_history\":[184,195],\"price_history\":[[4.6,6.4,4.8],[4.6,6.6,5.4]],\"reputation_history\":[[0.7200000000000001,0.787608695652174,0.64],[0.6975000000000001,0.71644"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":6.8,"quantity":50,"forecastDemand":195,"forecastError":3.0,"allocatedDemand":35.428809698194385,"realizedSales":35.428809698194385,"shortage":0.0,"profit":141.12216757044075,"cumProfit":412.666644432682,"reputation":0.7873351652138306,"repDelivery":0.6576390804276613,"repPricing":0.9367187499999999,"repCooperation":0.8875,"reputationComponents":{"delivery":0.6576390804276613,"pricing":0.9367187499999999,"cooperation":0.8875},"serviceRate":1.0,"transferIn":0.0,"transferOut":2.571190301805629,"transferAttempts":1,"transferAccepts":1,"coopProbability":0.4357032061207725,"coopAcceptRate":1.0,"segmentDemand":{"training_burst":89.10000000000001,"enterprise_sla":69.3,"spot_workload":39.6},"segmentAllocations":{"training_burst":10.115027321595342,"enterprise_sla":22.42665520663893,"spot_workload":2.163077143395917},"reallocatedIn":0.7240500265641963,"reallocatedOut":0.0,"backlogStart":9.497382888541319,"newContractDemand":17.93964799430853,"deliveredBacklog":9.497382888541319,"backlogEnd":0.0,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=200;price=5.60;quantity=40","decisionSource":"llm-context","decisionReason":"forecast 200.0 + 0.0; price 5.40 + 0.20; quantity target 40.0; risk gate none; final forecast=200, price=5.60, quantity=40","decisionTrace":{"source":"llm-context","summary":"forecast 200.0 + 0.0; price 5.40 + 0.20; quantity target 40.0; risk gate none; final forecast=200, price=5.60, quantity=40","forecast_base":200.0,"forecast_adjustment":0.0,"price_base":5.4,"price_adjustment":0.1999999999999993,"quantity_target":40.0,"risk_gate_adjustment":"none","final_forecast":200,"final_price":5.6,"final_quantity":40,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"SpotBroker\",\"agent_role\":\"spot\",\"agent_persona\":\"Fast-moving spot broker that hunts volatility and preserves light, flexible inventory.\",\"stage_styles\":{\"forecaster\":\"volatility_reader\",\"pricer\":\"spread_hunter\",\"allocator\":\"inventory_light\",\"risk_gate\":\"inventory_guard\"},\"round_index\":2,\"observed_demand\":197,\"observed_demand_history\":[184,195],\"price_history\":[[4.6,6.4,4.8],[4.6,6.6,5.4]],\"reputation_history\":[[0.7200000000000001,0.787608695652174,0.64],[0.6975000000000001,0.71644"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":5.6,"quantity":40,"forecastDemand":200,"forecastError":2.0,"allocatedDemand":42.57119030180563,"realizedSales":40.65205661009822,"shortage":1.9191336917074082,"profit":67.13949313599967,"cumProfit":205.5875374093377,"reputation":0.6925217320121073,"repDelivery":0.6789497140242147,"repPricing":0.81015625,"repCooperation":0.55,"reputationComponents":{"delivery":0.6789497140242147,"pricing":0.81015625,"cooperation":0.55},"serviceRate":0.9549194260695593,"transferIn":2.571190301805629,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":89.10000000000001,"enterprise_sla":69.3,"spot_workload":39.6},"segmentAllocations":{"training_burst":19.26139721772905,"enterprise_sla":14.141643112847483,"spot_workload":13.040252892080984},"reallocatedIn":0.0,"reallocatedOut":3.8721029208518836,"backlogStart":1.9191336917074096,"newContractDemand":13.184384701012567,"deliveredBacklog":1.9191336917074096,"backlogEnd":0.5943596292413682,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":0,"defaultFlag":0}]},{"round":3,"demandTrue":202.0,"demandObserved":204.0,"demandGap":2.0,"marketAvgPrice":5.733333333333333,"marketTotalSales":191.65799577107143,"fulfillmentRatio":0.9488019592627298,"shockComponent":0.0,"trendComponent":181.8,"seasonComponent":15.816042990667249,"noiseComponent":4.370153414813965,"transferVolume":0.0,"defaultCount":2,"dumpCount":1,"backlogTotal":4.3653419276126275,"reallocatedVolume":1.9755705863093311,"agentSpread":2.2,"roundTrace":{"round_index":3,"demand_true":202.0,"demand_observed":204.0,"market_total_sales":191.65799577107143,"market_avg_price":5.733333333333333,"transfer_volume":0.0,"default_count":2,"dump_count":1,"backlog_total":4.3653419276126275,"summary":"R3: demand 202, sales 192, transfer 0.0, backlog 4.4, defaults 2, dumps 1"},"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=210;price=4.60;quantity=120","decisionSource":"llm-context","decisionReason":"forecast 198.0 + 12.0; price 4.60 + 0.00; quantity target 120.0; risk gate none; final forecast=210, price=4.60, quantity=120","decisionTrace":{"source":"llm-context","summary":"forecast 198.0 + 12.0; price 4.60 + 0.00; quantity target 120.0; risk gate none; final forecast=210, price=4.60, quantity=120","forecast_base":198.0,"forecast_adjustment":12.0,"price_base":4.6,"price_adjustment":0.0,"quantity_target":120.0,"risk_gate_adjustment":"none","final_forecast":210,"final_price":4.6,"final_quantity":120,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"Hyperscaler\",\"agent_role\":\"hyperscaler\",\"agent_persona\":\"Scale-dominant operator that values throughput, market share, and capacity continuity.\",\"stage_styles\":{\"forecaster\":\"momentum_chaser\",\"pricer\":\"share_grabber\",\"allocator\":\"capacity_expander\",\"risk_gate\":\"growth_tolerant\"},\"round_index\":3,\"observed_demand\":204,\"observed_demand_history\":[184,195,197],\"price_history\":[[4.6,6.4,4.8],[4.6,6.6,5.4],[4.6,6.8,5.6]],\"reputation_history\":[[0.7200000000000001,0.787608695652174,0.64],["},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":4.6,"quantity":120,"forecastDemand":210,"forecastError":8.0,"allocatedDemand":120.0,"realizedSales":120.0,"shortage":0.0,"profit":84.0,"cumProfit":465.24999999999994,"reputation":0.66796875,"repDelivery":0.8892578125,"repPricing":0.3111328125,"repCooperation":0.65,"reputationComponents":{"delivery":0.8892578125,"pricing":0.3111328125,"cooperation":0.65},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":90.9,"enterprise_sla":70.69999999999999,"spot_workload":40.400000000000006},"segmentAllocations":{"training_burst":61.14217964335344,"enterprise_sla":30.5903215945521,"spot_workload":26.291928175785134},"reallocatedIn":1.9755705863093311,"reallocatedOut":0.0,"backlogStart":0.0,"newContractDemand":30.371555569038676,"deliveredBacklog":0.0,"backlogEnd":0.0,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=200;price=6.80;quantity=30","decisionSource":"llm-context","decisionReason":"forecast 195.0 + 5.0; price 7.00 + -0.20; quantity target 40.0; risk gate sla_guard reduced quantity under SLA/reputation pressure; inventory target capped quantity; final forecast=200, price=6.80, quantity=30","decisionTrace":{"source":"llm-context","summary":"forecast 195.0 + 5.0; price 7.00 + -0.20; quantity target 40.0; risk gate sla_guard reduced quantity under SLA/reputation pressure; inventory target capped quantity; final forecast=200, price=6.80, quantity=30","forecast_base":195.0,"forecast_adjustment":5.0,"price_base":7.0,"price_adjustment":-0.20000000000000018,"quantity_target":40.0,"risk_gate_adjustment":"sla_guard reduced quantity under SLA/reputation pressure; inventory target capped quantity","final_forecast":200,"final_price":6.8,"final_quantity":30,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"PremiumCloud\",\"agent_role\":\"premium\",\"agent_persona\":\"SLA-first premium operator that protects brand, uptime, and disciplined monetization.\",\"stage_styles\":{\"forecaster\":\"signal_smoother\",\"pricer\":\"premium_keeper\",\"allocator\":\"buffered_allocator\",\"risk_gate\":\"sla_guard\"},\"round_index\":3,\"observed_demand\":204,\"observed_demand_history\":[184,195,197],\"price_history\":[[4.6,6.4,4.8],[4.6,6.6,5.4],[4.6,6.8,5.6]],\"reputation_history\":[[0.7200000000000001,0.787608695652174,0.64],[0.697500"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":6.8,"quantity":30,"forecastDemand":200,"forecastError":2.0,"allocatedDemand":37.40222716616887,"realizedSales":32.2523554003128,"shortage":5.149871765856069,"profit":105.09120907334294,"cumProfit":517.757853506025,"reputation":0.7551652605755425,"repDelivery":0.5838070836510849,"repPricing":0.9525390625,"repCooperation":0.8875,"reputationComponents":{"delivery":0.5838070836510849,"pricing":0.9525390625,"cooperation":0.8875},"serviceRate":0.862311093321356,"transferIn":0.0,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":90.9,"enterprise_sla":70.69999999999999,"spot_workload":40.400000000000006},"segmentAllocations":{"training_burst":11.363693172670963,"enterprise_sla":25.565359080013856,"spot_workload":2.448745499793386},"reallocatedIn":0.0,"reallocatedOut":1.9755705863093311,"backlogStart":0.0,"newContractDemand":20.432825902267158,"deliveredBacklog":0.0,"backlogEnd":2.813373458838243,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":0,"defaultFlag":1},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=208;price=5.80;quantity=40","decisionSource":"llm-context","decisionReason":"forecast 200.0 + 8.0; price 5.40 + 0.40; quantity target 40.0; risk gate none; final forecast=208, price=5.80, quantity=40","decisionTrace":{"source":"llm-context","summary":"forecast 200.0 + 8.0; price 5.40 + 0.40; quantity target 40.0; risk gate none; final forecast=208, price=5.80, quantity=40","forecast_base":200.0,"forecast_adjustment":8.0,"price_base":5.4,"price_adjustment":0.39999999999999947,"quantity_target":40.0,"risk_gate_adjustment":"none","final_forecast":208,"final_price":5.8,"final_quantity":40,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"SpotBroker\",\"agent_role\":\"spot\",\"agent_persona\":\"Fast-moving spot broker that hunts volatility and preserves light, flexible inventory.\",\"stage_styles\":{\"forecaster\":\"volatility_reader\",\"pricer\":\"spread_hunter\",\"allocator\":\"inventory_light\",\"risk_gate\":\"inventory_guard\"},\"round_index\":3,\"observed_demand\":204,\"observed_demand_history\":[184,195,197],\"price_history\":[[4.6,6.4,4.8],[4.6,6.6,5.4],[4.6,6.8,5.6]],\"reputation_history\":[[0.7200000000000001,0.787608695652174,0.64],[0.697500"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":5.8,"quantity":40,"forecastDemand":208,"forecastError":6.0,"allocatedDemand":44.59777283383114,"realizedSales":39.40564037075863,"shortage":5.192132463072504,"profit":74.84422779800573,"cumProfit":280.43176520734346,"reputation":0.6698386315406339,"repDelivery":0.605106950581268,"repPricing":0.8576171875,"repCooperation":0.55,"reputationComponents":{"delivery":0.605106950581268,"pricing":0.8576171875,"cooperation":0.55},"serviceRate":0.8835786602524277,"transferIn":0.0,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":90.9,"enterprise_sla":70.69999999999999,"spot_workload":40.400000000000006},"segmentAllocations":{"training_burst":18.394127183975623,"enterprise_sla":14.54431932543403,"spot_workload":11.659326324421484},"reallocatedIn":0.0,"reallocatedOut":0.0,"backlogStart":0.5943596292413682,"newContractDemand":13.330618528694158,"deliveredBacklog":0.5943596292413682,"backlogEnd":1.5519684687743847,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":0,"defaultFlag":1}]},{"round":4,"demandTrue":193.0,"demandObserved":194.0,"demandGap":1.0,"marketAvgPrice":5.8,"marketTotalSales":193.0,"fulfillmentRatio":1.0,"shockComponent":0.0,"trendComponent":182.4,"seasonComponent":1.267042531464278,"noiseComponent":9.22472258889395,"transferVolume":0.0,"defaultCount":0,"dumpCount":1,"backlogTotal":0.0,"reallocatedVolume":0.0,"agentSpread":2.2,"roundTrace":{"round_index":4,"demand_true":193.0,"demand_observed":194.0,"market_total_sales":193.0,"market_avg_price":5.8,"transfer_volume":0.0,"default_count":0,"dump_count":1,"backlog_total":0.0,"summary":"R4: demand 193, sales 193, transfer 0.0, backlog 0.0, defaults 0, dumps 1"},"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=205;price=4.60;quantity=120","decisionSource":"llm-context","decisionReason":"forecast 205.0 + 0.0; price 4.60 + 0.00; quantity target 120.0; risk gate none; final forecast=205, price=4.60, quantity=120","decisionTrace":{"source":"llm-context","summary":"forecast 205.0 + 0.0; price 4.60 + 0.00; quantity target 120.0; risk gate none; final forecast=205, price=4.60, quantity=120","forecast_base":205.0,"forecast_adjustment":0.0,"price_base":4.6,"price_adjustment":0.0,"quantity_target":120.0,"risk_gate_adjustment":"none","final_forecast":205,"final_price":4.6,"final_quantity":120,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"Hyperscaler\",\"agent_role\":\"hyperscaler\",\"agent_persona\":\"Scale-dominant operator that values throughput, market share, and capacity continuity.\",\"stage_styles\":{\"forecaster\":\"momentum_chaser\",\"pricer\":\"share_grabber\",\"allocator\":\"capacity_expander\",\"risk_gate\":\"growth_tolerant\"},\"round_index\":4,\"observed_demand\":194,\"observed_demand_history\":[184,195,197,204],\"price_history\":[[4.6,6.4,4.8],[4.6,6.6,5.4],[4.6,6.8,5.6],[4.6,6.8,5.8]],\"reputation_history\":[[0.7200000000000001,0.78760"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":4.6,"quantity":120,"forecastDemand":205,"forecastError":12.0,"allocatedDemand":119.98662955579465,"realizedSales":119.98662955579465,"shortage":0.0,"profit":83.93685807724025,"cumProfit":549.1868580772402,"reputation":0.6584765625000001,"repDelivery":0.916943359375,"repPricing":0.23334960937500002,"repCooperation":0.65,"reputationComponents":{"delivery":0.916943359375,"pricing":0.23334960937500002,"cooperation":0.65},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":86.85000000000001,"enterprise_sla":67.55,"spot_workload":38.6},"segmentAllocations":{"training_burst":61.02777291195679,"enterprise_sla":32.07446385613409,"spot_workload":26.884392787703774},"reallocatedIn":0.0,"reallocatedOut":0.0,"backlogStart":0.0,"newContractDemand":31.502844822681432,"deliveredBacklog":0.0,"backlogEnd":0.0,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=196;price=6.80;quantity=40","decisionSource":"llm-context","decisionReason":"forecast 202.0 + -6.0; price 7.00 + -0.20; quantity target 40.0; risk gate sla_guard reduced quantity under SLA/reputation pressure; inventory target capped quantity; final forecast=196, price=6.80, quantity=40","decisionTrace":{"source":"llm-context","summary":"forecast 202.0 + -6.0; price 7.00 + -0.20; quantity target 40.0; risk gate sla_guard reduced quantity under SLA/reputation pressure; inventory target capped quantity; final forecast=196, price=6.80, quantity=40","forecast_base":202.0,"forecast_adjustment":-6.0,"price_base":7.0,"price_adjustment":-0.20000000000000018,"quantity_target":40.0,"risk_gate_adjustment":"sla_guard reduced quantity under SLA/reputation pressure; inventory target capped quantity","final_forecast":196,"final_price":6.8,"final_quantity":40,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"PremiumCloud\",\"agent_role\":\"premium\",\"agent_persona\":\"SLA-first premium operator that protects brand, uptime, and disciplined monetization.\",\"stage_styles\":{\"forecaster\":\"signal_smoother\",\"pricer\":\"premium_keeper\",\"allocator\":\"buffered_allocator\",\"risk_gate\":\"sla_guard\"},\"round_index\":4,\"observed_demand\":194,\"observed_demand_history\":[184,195,197,204],\"price_history\":[[4.6,6.4,4.8],[4.6,6.6,5.4],[4.6,6.8,5.6],[4.6,6.8,5.8]],\"reputation_history\":[[0.7200000000000001,0.7876086956521"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":6.8,"quantity":40,"forecastDemand":196,"forecastError":3.0,"allocatedDemand":36.25255051135524,"realizedSales":36.25255051135524,"shortage":0.0,"profit":121.56234800257347,"cumProfit":639.3202015085984,"reputation":0.8107489454316568,"repDelivery":0.6878553127383137,"repPricing":0.964404296875,"repCooperation":0.8875,"reputationComponents":{"delivery":0.6878553127383137,"pricing":0.964404296875,"cooperation":0.8875},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":86.85000000000001,"enterprise_sla":67.55,"spot_workload":38.6},"segmentAllocations":{"training_burst":10.742184936694224,"enterprise_sla":23.069221664961123,"spot_workload":2.441143909699892},"reallocatedIn":0.0,"reallocatedOut":0.0,"backlogStart":2.813373458838243,"newContractDemand":18.498191937875262,"deliveredBacklog":2.813373458838243,"backlogEnd":0.0,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=195;price=6.00;quantity=40","decisionSource":"llm-context","decisionReason":"forecast 207.0 + -12.0; price 5.60 + 0.40; quantity target 40.0; risk gate none; final forecast=195, price=6.00, quantity=40","decisionTrace":{"source":"llm-context","summary":"forecast 207.0 + -12.0; price 5.60 + 0.40; quantity target 40.0; risk gate none; final forecast=195, price=6.00, quantity=40","forecast_base":207.0,"forecast_adjustment":-12.0,"price_base":5.6,"price_adjustment":0.40000000000000036,"quantity_target":40.0,"risk_gate_adjustment":"none","final_forecast":195,"final_price":6.0,"final_quantity":40,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"SpotBroker\",\"agent_role\":\"spot\",\"agent_persona\":\"Fast-moving spot broker that hunts volatility and preserves light, flexible inventory.\",\"stage_styles\":{\"forecaster\":\"volatility_reader\",\"pricer\":\"spread_hunter\",\"allocator\":\"inventory_light\",\"risk_gate\":\"inventory_guard\"},\"round_index\":4,\"observed_demand\":194,\"observed_demand_history\":[184,195,197,204],\"price_history\":[[4.6,6.4,4.8],[4.6,6.6,5.4],[4.6,6.8,5.6],[4.6,6.8,5.8]],\"reputation_history\":[[0.7200000000000001,0.7876086956521"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":6.0,"quantity":40,"forecastDemand":195,"forecastError":2.0,"allocatedDemand":36.760819932850126,"realizedSales":36.760819932850126,"shortage":0.0,"profit":79.24801847876148,"cumProfit":359.67978368610494,"reputation":0.7298789736554755,"repDelivery":0.7038302129359509,"repPricing":0.8932128906250001,"repCooperation":0.55,"reputationComponents":{"delivery":0.7038302129359509,"pricing":0.8932128906250001,"cooperation":0.55},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":86.85000000000001,"enterprise_sla":67.55,"spot_workload":38.6},"segmentAllocations":{"training_burst":15.080042151349,"enterprise_sla":12.40631447890479,"spot_workload":9.274463302596336},"reallocatedIn":0.0,"reallocatedOut":0.0,"backlogStart":1.5519684687743847,"newContractDemand":11.27646323944331,"deliveredBacklog":1.5519684687743847,"backlogEnd":0.0,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":0,"defaultFlag":0}]},{"round":5,"demandTrue":182.0,"demandObserved":183.0,"demandGap":1.0,"marketAvgPrice":5.733333333333333,"marketTotalSales":182.0,"fulfillmentRatio":1.0,"shockComponent":0.0,"trendComponent":183.0,"seasonComponent":-7.797644698516018,"noiseComponent":6.914512607298582,"transferVolume":0.0,"defaultCount":0,"dumpCount":1,"backlogTotal":0.0,"reallocatedVolume":14.569580419416297,"agentSpread":2.2,"roundTrace":{"round_index":5,"demand_true":182.0,"demand_observed":183.0,"market_total_sales":182.0,"market_avg_price":5.733333333333333,"transfer_volume":0.0,"default_count":0,"dump_count":1,"backlog_total":0.0,"summary":"R5: demand 182, sales 182, transfer 0.0, backlog 0.0, defaults 0, dumps 1"},"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=180;price=4.60;quantity=120","decisionSource":"llm-context","decisionReason":"forecast 198.0 + -18.0; price 4.60 + 0.00; quantity target 120.0; risk gate none; final forecast=180, price=4.60, quantity=120","decisionTrace":{"source":"llm-context","summary":"forecast 198.0 + -18.0; price 4.60 + 0.00; quantity target 120.0; risk gate none; final forecast=180, price=4.60, quantity=120","forecast_base":198.0,"forecast_adjustment":-18.0,"price_base":4.6,"price_adjustment":0.0,"quantity_target":120.0,"risk_gate_adjustment":"none","final_forecast":180,"final_price":4.6,"final_quantity":120,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"Hyperscaler\",\"agent_role\":\"hyperscaler\",\"agent_persona\":\"Scale-dominant operator that values throughput, market share, and capacity continuity.\",\"stage_styles\":{\"forecaster\":\"momentum_chaser\",\"pricer\":\"share_grabber\",\"allocator\":\"capacity_expander\",\"risk_gate\":\"growth_tolerant\"},\"round_index\":5,\"observed_demand\":183,\"observed_demand_history\":[184,195,197,204,194],\"price_history\":[[4.6,6.4,4.8],[4.6,6.6,5.4],[4.6,6.8,5.6],[4.6,6.8,5.8],[4.6,6.8,6.0]],\"reputation_history\":[[0.720000"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":4.6,"quantity":120,"forecastDemand":180,"forecastError":2.0,"allocatedDemand":119.6745853666037,"realizedSales":119.6745853666037,"shortage":0.0,"profit":82.461837196283,"cumProfit":631.6486952735232,"reputation":0.651357421875,"repDelivery":0.9377075195312501,"repPricing":0.17501220703125,"repCooperation":0.65,"reputationComponents":{"delivery":0.9377075195312501,"pricing":0.17501220703125,"cooperation":0.65},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":81.9,"enterprise_sla":63.699999999999996,"spot_workload":36.4},"segmentAllocations":{"training_burst":54.5416623215366,"enterprise_sla":27.039449673637574,"spot_workload":23.523892952013224},"reallocatedIn":14.569580419416297,"reallocatedOut":0.0,"backlogStart":0.0,"newContractDemand":26.9099481349825,"deliveredBacklog":0.0,"backlogEnd":0.0,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=185;price=6.80;quantity=30","decisionSource":"llm-context","decisionReason":"forecast 197.0 + -12.0; price 7.00 + -0.20; quantity target 40.0; risk gate sla_guard reduced quantity under SLA/reputation pressure; inventory target capped quantity; final forecast=185, price=6.80, quantity=30","decisionTrace":{"source":"llm-context","summary":"forecast 197.0 + -12.0; price 7.00 + -0.20; quantity target 40.0; risk gate sla_guard reduced quantity under SLA/reputation pressure; inventory target capped quantity; final forecast=185, price=6.80, quantity=30","forecast_base":197.0,"forecast_adjustment":-12.0,"price_base":7.0,"price_adjustment":-0.20000000000000018,"quantity_target":40.0,"risk_gate_adjustment":"sla_guard reduced quantity under SLA/reputation pressure; inventory target capped quantity","final_forecast":185,"final_price":6.8,"final_quantity":30,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"PremiumCloud\",\"agent_role\":\"premium\",\"agent_persona\":\"SLA-first premium operator that protects brand, uptime, and disciplined monetization.\",\"stage_styles\":{\"forecaster\":\"signal_smoother\",\"pricer\":\"premium_keeper\",\"allocator\":\"buffered_allocator\",\"risk_gate\":\"sla_guard\"},\"round_index\":5,\"observed_demand\":183,\"observed_demand_history\":[184,195,197,204,194],\"price_history\":[[4.6,6.4,4.8],[4.6,6.6,5.4],[4.6,6.8,5.6],[4.6,6.8,5.8],[4.6,6.8,6.0]],\"reputation_history\":[[0.72000000000000"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":6.8,"quantity":30,"forecastDemand":185,"forecastError":3.0,"allocatedDemand":30.840668426825868,"realizedSales":30.840668426825868,"shortage":0.0,"profit":103.21654530241591,"cumProfit":742.5367468110144,"reputation":0.8524367090737426,"repDelivery":0.7658914845537352,"repPricing":0.9733032226562499,"repCooperation":0.8875,"reputationComponents":{"delivery":0.7658914845537352,"pricing":0.9733032226562499,"cooperation":0.8875},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":81.9,"enterprise_sla":63.699999999999996,"spot_workload":36.4},"segmentAllocations":{"training_burst":10.387487386846797,"enterprise_sla":23.245115004209516,"spot_workload":2.224819950732957},"reallocatedIn":0.0,"reallocatedOut":5.016753914963399,"backlogStart":0.0,"newContractDemand":18.583825989378468,"deliveredBacklog":0.0,"backlogEnd":0.0,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=180;price=5.80;quantity=30","decisionSource":"llm-context","decisionReason":"forecast 200.0 + -20.0; price 5.60 + 0.20; quantity target 30.0; risk gate none; final forecast=180, price=5.80, quantity=30","decisionTrace":{"source":"llm-context","summary":"forecast 200.0 + -20.0; price 5.60 + 0.20; quantity target 30.0; risk gate none; final forecast=180, price=5.80, quantity=30","forecast_base":200.0,"forecast_adjustment":-20.0,"price_base":5.6,"price_adjustment":0.20000000000000018,"quantity_target":30.0,"risk_gate_adjustment":"none","final_forecast":180,"final_price":5.8,"final_quantity":30,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"SpotBroker\",\"agent_role\":\"spot\",\"agent_persona\":\"Fast-moving spot broker that hunts volatility and preserves light, flexible inventory.\",\"stage_styles\":{\"forecaster\":\"volatility_reader\",\"pricer\":\"spread_hunter\",\"allocator\":\"inventory_light\",\"risk_gate\":\"inventory_guard\"},\"round_index\":5,\"observed_demand\":183,\"observed_demand_history\":[184,195,197,204,194],\"price_history\":[[4.6,6.4,4.8],[4.6,6.6,5.4],[4.6,6.8,5.6],[4.6,6.8,5.8],[4.6,6.8,6.0]],\"reputation_history\":[[0.72000000000000"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":5.8,"quantity":30,"forecastDemand":180,"forecastError":2.0,"allocatedDemand":31.48474620657043,"realizedSales":31.48474620657043,"shortage":0.0,"profit":71.0055279981085,"cumProfit":430.68531168421345,"reputation":0.7749092302416066,"repDelivery":0.7778726597019632,"repPricing":0.9199096679687501,"repCooperation":0.55,"reputationComponents":{"delivery":0.7778726597019632,"pricing":0.9199096679687501,"cooperation":0.55},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":81.9,"enterprise_sla":63.699999999999996,"spot_workload":36.4},"segmentAllocations":{"training_burst":16.970850291616603,"enterprise_sla":13.415435322152906,"spot_workload":10.651287097253817},"reallocatedIn":0.0,"reallocatedOut":9.552826504452899,"backlogStart":0.0,"newContractDemand":12.291225875639032,"deliveredBacklog":0.0,"backlogEnd":0.0,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":0,"defaultFlag":0}]},{"round":6,"demandTrue":171.0,"demandObserved":175.0,"demandGap":4.0,"marketAvgPrice":5.666666666666667,"marketTotalSales":171.0,"fulfillmentRatio":1.0,"shockComponent":0.0,"trendComponent":183.6,"seasonComponent":-4.073969091654618,"noiseComponent":-8.55090700389924,"transferVolume":2.8088762454108434,"defaultCount":0,"dumpCount":1,"backlogTotal":0.0,"reallocatedVolume":11.809481160366103,"agentSpread":2.2,"roundTrace":{"round_index":6,"demand_true":171.0,"demand_observed":175.0,"market_total_sales":171.0,"market_avg_price":5.666666666666667,"transfer_volume":2.8088762454108434,"default_count":0,"dump_count":1,"backlog_total":0.0,"summary":"R6: demand 171, sales 171, transfer 2.8, backlog 0.0, defaults 0, dumps 1"},"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=170;price=4.60;quantity=110","decisionSource":"llm-context","decisionReason":"forecast 187.0 + -17.0; price 4.60 + 0.00; quantity target 120.0; risk gate inventory target capped quantity; final forecast=170, price=4.60, quantity=110","decisionTrace":{"source":"llm-context","summary":"forecast 187.0 + -17.0; price 4.60 + 0.00; quantity target 120.0; risk gate inventory target capped quantity; final forecast=170, price=4.60, quantity=110","forecast_base":187.0,"forecast_adjustment":-17.0,"price_base":4.6,"price_adjustment":0.0,"quantity_target":120.0,"risk_gate_adjustment":"inventory target capped quantity","final_forecast":170,"final_price":4.6,"final_quantity":110,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"Hyperscaler\",\"agent_role\":\"hyperscaler\",\"agent_persona\":\"Scale-dominant operator that values throughput, market share, and capacity continuity.\",\"stage_styles\":{\"forecaster\":\"momentum_chaser\",\"pricer\":\"share_grabber\",\"allocator\":\"capacity_expander\",\"risk_gate\":\"growth_tolerant\"},\"round_index\":6,\"observed_demand\":175,\"observed_demand_history\":[195,197,204,194,183],\"price_history\":[[4.6,6.6,5.4],[4.6,6.8,5.6],[4.6,6.8,5.8],[4.6,6.8,6.0],[4.6,6.8,5.8]],\"reputation_history\":[[0.697500"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":4.6,"quantity":110,"forecastDemand":170,"forecastError":1.0,"allocatedDemand":102.7283490674962,"realizedSales":102.7283490674962,"shortage":0.0,"profit":50.874561304670934,"cumProfit":682.5232565781942,"reputation":0.6135180664062501,"repDelivery":0.9532806396484376,"repPricing":0.1312591552734375,"repCooperation":0.48750000000000004,"reputationComponents":{"delivery":0.9532806396484376,"pricing":0.1312591552734375,"cooperation":0.48750000000000004},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"transferAttempts":1,"transferAccepts":0,"coopProbability":0.3698827147683158,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":76.95,"enterprise_sla":59.849999999999994,"spot_workload":34.2},"segmentAllocations":{"training_burst":48.516813195594,"enterprise_sla":23.096753670194836,"spot_workload":20.289506735823615},"reallocatedIn":10.825275465883747,"reallocatedOut":0.0,"backlogStart":0.0,"newContractDemand":23.188721908996712,"deliveredBacklog":0.0,"backlogEnd":0.0,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=180;price=6.80;quantity=40","decisionSource":"llm-context","decisionReason":"forecast 188.0 + -8.0; price 7.00 + -0.20; quantity target 40.0; risk gate inventory target capped quantity; final forecast=180, price=6.80, quantity=40","decisionTrace":{"source":"llm-context","summary":"forecast 188.0 + -8.0; price 7.00 + -0.20; quantity target 40.0; risk gate inventory target capped quantity; final forecast=180, price=6.80, quantity=40","forecast_base":188.0,"forecast_adjustment":-8.0,"price_base":7.0,"price_adjustment":-0.20000000000000018,"quantity_target":40.0,"risk_gate_adjustment":"inventory target capped quantity","final_forecast":180,"final_price":6.8,"final_quantity":40,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"PremiumCloud\",\"agent_role\":\"premium\",\"agent_persona\":\"SLA-first premium operator that protects brand, uptime, and disciplined monetization.\",\"stage_styles\":{\"forecaster\":\"signal_smoother\",\"pricer\":\"premium_keeper\",\"allocator\":\"buffered_allocator\",\"risk_gate\":\"sla_guard\"},\"round_index\":6,\"observed_demand\":175,\"observed_demand_history\":[195,197,204,194,183],\"price_history\":[[4.6,6.6,5.4],[4.6,6.8,5.6],[4.6,6.8,5.8],[4.6,6.8,6.0],[4.6,6.8,5.8]],\"reputation_history\":[[0.69750000000000"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":6.8,"quantity":40,"forecastDemand":180,"forecastError":9.0,"allocatedDemand":35.46277468709297,"realizedSales":35.46277468709297,"shortage":0.0,"profit":117.04323615025595,"cumProfit":859.5799829612704,"reputation":0.8893275318053069,"repDelivery":0.8244186134153014,"repPricing":0.9799774169921874,"repCooperation":0.9156249999999999,"reputationComponents":{"delivery":0.8244186134153014,"pricing":0.9799774169921874,"cooperation":0.9156249999999999},"serviceRate":1.0,"transferIn":0.0,"transferOut":2.8088762454108434,"transferAttempts":1,"transferAccepts":1,"coopProbability":0.3862898227327219,"coopAcceptRate":1.0,"segmentDemand":{"training_burst":76.95,"enterprise_sla":59.849999999999994,"spot_workload":34.2},"segmentAllocations":{"training_burst":9.80250748939332,"enterprise_sla":22.697604762670473,"spot_workload":1.9784567405468148},"reallocatedIn":0.9842056944823546,"reallocatedOut":0.0,"backlogStart":0.0,"newContractDemand":18.102377157969528,"deliveredBacklog":0.0,"backlogEnd":0.0,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=170;price=5.60;quantity=30","decisionSource":"llm-context","decisionReason":"forecast 188.0 + -18.0; price 5.60 + 0.00; quantity target 30.0; risk gate inventory_guard lifted price under volatility; final forecast=170, price=5.60, quantity=30","decisionTrace":{"source":"llm-context","summary":"forecast 188.0 + -18.0; price 5.60 + 0.00; quantity target 30.0; risk gate inventory_guard lifted price under volatility; final forecast=170, price=5.60, quantity=30","forecast_base":188.0,"forecast_adjustment":-18.0,"price_base":5.6,"price_adjustment":0.0,"quantity_target":30.0,"risk_gate_adjustment":"inventory_guard lifted price under volatility","final_forecast":170,"final_price":5.6,"final_quantity":30,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"SpotBroker\",\"agent_role\":\"spot\",\"agent_persona\":\"Fast-moving spot broker that hunts volatility and preserves light, flexible inventory.\",\"stage_styles\":{\"forecaster\":\"volatility_reader\",\"pricer\":\"spread_hunter\",\"allocator\":\"inventory_light\",\"risk_gate\":\"inventory_guard\"},\"round_index\":6,\"observed_demand\":175,\"observed_demand_history\":[195,197,204,194,183],\"price_history\":[[4.6,6.6,5.4],[4.6,6.8,5.6],[4.6,6.8,5.8],[4.6,6.8,6.0],[4.6,6.8,5.8]],\"reputation_history\":[[0.69750000000000"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":5.6,"quantity":30,"forecastDemand":170,"forecastError":1.0,"allocatedDemand":32.80887624541084,"realizedSales":32.80887624541084,"shortage":0.0,"profit":52.06833058206729,"cumProfit":482.75364226628074,"reputation":0.8086819226812049,"repDelivery":0.8334044947764724,"repPricing":0.9399322509765625,"repCooperation":0.55,"reputationComponents":{"delivery":0.8334044947764724,"pricing":0.9399322509765625,"cooperation":0.55},"serviceRate":1.0,"transferIn":2.8088762454108434,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":76.95,"enterprise_sla":59.849999999999994,"spot_workload":34.2},"segmentAllocations":{"training_burst":18.630679315012685,"enterprise_sla":14.05564156713469,"spot_workload":11.932036523629575},"reallocatedIn":0.0,"reallocatedOut":11.809481160366103,"backlogStart":0.0,"newContractDemand":13.001400933033764,"deliveredBacklog":0.0,"backlogEnd":0.0,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":0,"defaultFlag":0}]},{"round":7,"demandTrue":194.0,"demandObserved":196.0,"demandGap":2.0,"marketAvgPrice":5.733333333333333,"marketTotalSales":194.0,"fulfillmentRatio":1.0,"shockComponent":0.0,"trendComponent":184.2,"seasonComponent":9.809933289465183,"noiseComponent":-0.3032142304916152,"transferVolume":0.0,"defaultCount":0,"dumpCount":1,"backlogTotal":0.0,"reallocatedVolume":8.286149975290684,"agentSpread":2.2,"roundTrace":{"round_index":7,"demand_true":194.0,"demand_observed":196.0,"market_total_sales":194.0,"market_avg_price":5.733333333333333,"transfer_volume":0.0,"default_count":0,"dump_count":1,"backlog_total":0.0,"summary":"R7: demand 194, sales 194, transfer 0.0, backlog 0.0, defaults 0, dumps 1"},"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=210;price=4.60;quantity=120","decisionSource":"llm-context","decisionReason":"forecast 177.0 + 33.0; price 4.60 + 0.00; quantity target 120.0; risk gate none; final forecast=210, price=4.60, quantity=120","decisionTrace":{"source":"llm-context","summary":"forecast 177.0 + 33.0; price 4.60 + 0.00; quantity target 120.0; risk gate none; final forecast=210, price=4.60, quantity=120","forecast_base":177.0,"forecast_adjustment":33.0,"price_base":4.6,"price_adjustment":0.0,"quantity_target":120.0,"risk_gate_adjustment":"none","final_forecast":210,"final_price":4.6,"final_quantity":120,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"Hyperscaler\",\"agent_role\":\"hyperscaler\",\"agent_persona\":\"Scale-dominant operator that values throughput, market share, and capacity continuity.\",\"stage_styles\":{\"forecaster\":\"momentum_chaser\",\"pricer\":\"share_grabber\",\"allocator\":\"capacity_expander\",\"risk_gate\":\"growth_tolerant\"},\"round_index\":7,\"observed_demand\":196,\"observed_demand_history\":[197,204,194,183,175],\"price_history\":[[4.6,6.8,5.6],[4.6,6.8,5.8],[4.6,6.8,6.0],[4.6,6.8,5.8],[4.6,6.8,5.6]],\"reputation_history\":[[0.680625"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":4.6,"quantity":120,"forecastDemand":210,"forecastError":16.0,"allocatedDemand":112.44448583925345,"realizedSales":112.44448583925345,"shortage":0.0,"profit":47.53211663093456,"cumProfit":730.0553732091287,"reputation":0.6095135498046875,"repDelivery":0.9649604797363281,"repPricing":0.09844436645507813,"repCooperation":0.48750000000000004,"reputationComponents":{"delivery":0.9649604797363281,"pricing":0.09844436645507813,"cooperation":0.48750000000000004},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":87.3,"enterprise_sla":67.89999999999999,"spot_workload":38.800000000000004},"segmentAllocations":{"training_burst":55.51058188674032,"enterprise_sla":24.19846868396087,"spot_workload":24.44928529326157},"reallocatedIn":8.286149975290684,"reallocatedOut":0.0,"backlogStart":0.0,"newContractDemand":24.922373966307763,"deliveredBacklog":0.0,"backlogEnd":0.0,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=188;price=6.80;quantity=40","decisionSource":"llm-context","decisionReason":"forecast 178.0 + 10.0; price 7.00 + -0.20; quantity target 40.0; risk gate none; final forecast=188, price=6.80, quantity=40","decisionTrace":{"source":"llm-context","summary":"forecast 178.0 + 10.0; price 7.00 + -0.20; quantity target 40.0; risk gate none; final forecast=188, price=6.80, quantity=40","forecast_base":178.0,"forecast_adjustment":10.0,"price_base":7.0,"price_adjustment":-0.20000000000000018,"quantity_target":40.0,"risk_gate_adjustment":"none","final_forecast":188,"final_price":6.8,"final_quantity":40,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"PremiumCloud\",\"agent_role\":\"premium\",\"agent_persona\":\"SLA-first premium operator that protects brand, uptime, and disciplined monetization.\",\"stage_styles\":{\"forecaster\":\"signal_smoother\",\"pricer\":\"premium_keeper\",\"allocator\":\"buffered_allocator\",\"risk_gate\":\"sla_guard\"},\"round_index\":7,\"observed_demand\":196,\"observed_demand_history\":[197,204,194,183,175],\"price_history\":[[4.6,6.8,5.6],[4.6,6.8,5.8],[4.6,6.8,6.0],[4.6,6.8,5.8],[4.6,6.8,5.6]],\"reputation_history\":[[0.680625,0.78733"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":6.8,"quantity":40,"forecastDemand":188,"forecastError":6.0,"allocatedDemand":41.55551416074657,"realizedSales":41.55551416074657,"shortage":0.0,"profit":138.57749629307665,"cumProfit":998.157479254347,"reputation":0.9127768988539802,"repDelivery":0.8683139600614761,"repPricing":0.9849830627441406,"repCooperation":0.9156249999999999,"reputationComponents":{"delivery":0.8683139600614761,"pricing":0.9849830627441406,"cooperation":0.9156249999999999},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":87.3,"enterprise_sla":67.89999999999999,"spot_workload":38.800000000000004},"segmentAllocations":{"training_burst":12.086867472385707,"enterprise_sla":27.78412597762781,"spot_workload":2.4815563892129813},"reallocatedIn":0.0,"reallocatedOut":0.7970356784799293,"backlogStart":0.0,"newContractDemand":22.170859049920075,"deliveredBacklog":0.0,"backlogEnd":0.0,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=190;price=5.80;quantity=40","decisionSource":"llm-context","decisionReason":"forecast 178.0 + 12.0; price 5.80 + 0.00; quantity target 40.0; risk gate none; final forecast=190, price=5.80, quantity=40","decisionTrace":{"source":"llm-context","summary":"forecast 178.0 + 12.0; price 5.80 + 0.00; quantity target 40.0; risk gate none; final forecast=190, price=5.80, quantity=40","forecast_base":178.0,"forecast_adjustment":12.0,"price_base":5.8,"price_adjustment":0.0,"quantity_target":40.0,"risk_gate_adjustment":"none","final_forecast":190,"final_price":5.8,"final_quantity":40,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"SpotBroker\",\"agent_role\":\"spot\",\"agent_persona\":\"Fast-moving spot broker that hunts volatility and preserves light, flexible inventory.\",\"stage_styles\":{\"forecaster\":\"volatility_reader\",\"pricer\":\"spread_hunter\",\"allocator\":\"inventory_light\",\"risk_gate\":\"inventory_guard\"},\"round_index\":7,\"observed_demand\":196,\"observed_demand_history\":[197,204,194,183,175],\"price_history\":[[4.6,6.8,5.6],[4.6,6.8,5.8],[4.6,6.8,6.0],[4.6,6.8,5.8],[4.6,6.8,5.6]],\"reputation_history\":[[0.680625,0.78733"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":5.8,"quantity":40,"forecastDemand":190,"forecastError":4.0,"allocatedDemand":40.0,"realizedSales":40.0,"shortage":0.0,"profit":81.594,"cumProfit":564.3476422662807,"reputation":0.8340114420109036,"repDelivery":0.8750533710823543,"repPricing":0.9549491882324219,"repCooperation":0.55,"reputationComponents":{"delivery":0.8750533710823543,"pricing":0.9549491882324219,"cooperation":0.55},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":87.3,"enterprise_sla":67.89999999999999,"spot_workload":38.800000000000004},"segmentAllocations":{"training_burst":19.70255064087398,"enterprise_sla":15.917405338411323,"spot_workload":11.869158317525455},"reallocatedIn":0.0,"reallocatedOut":7.4891142968107545,"backlogStart":0.0,"newContractDemand":14.501766983772164,"deliveredBacklog":0.0,"backlogEnd":0.0,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":0,"defaultFlag":0}]},{"round":8,"demandTrue":196.0,"demandObserved":187.0,"demandGap":-9.0,"marketAvgPrice":5.733333333333333,"marketTotalSales":181.88277955254352,"fulfillmentRatio":0.9279733650639975,"shockComponent":0.0,"trendComponent":184.8,"seasonComponent":23.265094512552736,"noiseComponent":-11.975998266660184,"transferVolume":0.0,"defaultCount":1,"dumpCount":0,"backlogTotal":5.841724146848599,"reallocatedVolume":8.67507342780793,"agentSpread":2.2,"roundTrace":{"round_index":8,"demand_true":196.0,"demand_observed":187.0,"market_total_sales":181.88277955254352,"market_avg_price":5.733333333333333,"transfer_volume":0.0,"default_count":1,"dump_count":0,"backlog_total":5.841724146848599,"summary":"R8: demand 196, sales 182, transfer 0.0, backlog 5.8, defaults 1, dumps 0"},"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=187;price=4.60;quantity=100","decisionSource":"llm-context","decisionReason":"forecast 189.0 + -2.0; price 4.60 + 0.00; quantity target 110.0; risk gate inventory target capped quantity; final forecast=187, price=4.60, quantity=100","decisionTrace":{"source":"llm-context","summary":"forecast 189.0 + -2.0; price 4.60 + 0.00; quantity target 110.0; risk gate inventory target capped quantity; final forecast=187, price=4.60, quantity=100","forecast_base":189.0,"forecast_adjustment":-2.0,"price_base":4.6,"price_adjustment":0.0,"quantity_target":110.0,"risk_gate_adjustment":"inventory target capped quantity","final_forecast":187,"final_price":4.6,"final_quantity":100,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"Hyperscaler\",\"agent_role\":\"hyperscaler\",\"agent_persona\":\"Scale-dominant operator that values throughput, market share, and capacity continuity.\",\"stage_styles\":{\"forecaster\":\"momentum_chaser\",\"pricer\":\"share_grabber\",\"allocator\":\"capacity_expander\",\"risk_gate\":\"growth_tolerant\"},\"round_index\":8,\"observed_demand\":187,\"observed_demand_history\":[204,194,183,175,196],\"price_history\":[[4.6,6.8,5.8],[4.6,6.8,6.0],[4.6,6.8,5.8],[4.6,6.8,5.6],[4.6,6.8,5.8]],\"reputation_history\":[[0.667968"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":4.6,"quantity":100,"forecastDemand":187,"forecastError":9.0,"allocatedDemand":111.88277955254354,"realizedSales":111.88277955254354,"shortage":0.0,"profit":139.66078594170028,"cumProfit":869.716159150829,"reputation":0.6815101623535157,"repDelivery":0.9737203598022461,"repPricing":0.3238332748413086,"repCooperation":0.48750000000000004,"reputationComponents":{"delivery":0.9737203598022461,"pricing":0.3238332748413086,"cooperation":0.48750000000000004},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":88.2,"enterprise_sla":68.6,"spot_workload":39.2},"segmentAllocations":{"training_burst":55.391874206099985,"enterprise_sla":23.275723265226564,"spot_workload":24.540108653409053},"reallocatedIn":8.67507342780793,"reallocatedOut":0.0,"backlogStart":0.0,"newContractDemand":24.222985302200374,"deliveredBacklog":0.0,"backlogEnd":0.0,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=187;price=6.80;quantity=40","decisionSource":"llm-context","decisionReason":"forecast 189.0 + -2.0; price 7.00 + -0.20; quantity target 40.0; risk gate none; final forecast=187, price=6.80, quantity=40","decisionTrace":{"source":"llm-context","summary":"forecast 189.0 + -2.0; price 7.00 + -0.20; quantity target 40.0; risk gate none; final forecast=187, price=6.80, quantity=40","forecast_base":189.0,"forecast_adjustment":-2.0,"price_base":7.0,"price_adjustment":-0.20000000000000018,"quantity_target":40.0,"risk_gate_adjustment":"none","final_forecast":187,"final_price":6.8,"final_quantity":40,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"PremiumCloud\",\"agent_role\":\"premium\",\"agent_persona\":\"SLA-first premium operator that protects brand, uptime, and disciplined monetization.\",\"stage_styles\":{\"forecaster\":\"signal_smoother\",\"pricer\":\"premium_keeper\",\"allocator\":\"buffered_allocator\",\"risk_gate\":\"sla_guard\"},\"round_index\":8,\"observed_demand\":187,\"observed_demand_history\":[204,194,183,175,196],\"price_history\":[[4.6,6.8,5.8],[4.6,6.8,6.0],[4.6,6.8,5.8],[4.6,6.8,5.6],[4.6,6.8,5.8]],\"reputation_history\":[[0.66796875,0.755"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":6.8,"quantity":40,"forecastDemand":187,"forecastError":9.0,"allocatedDemand":43.81574170541062,"realizedSales":40.0,"shortage":3.8157417054106233,"profit":122.27638744188407,"cumProfit":1120.433866696231,"reputation":0.9194781626627231,"repDelivery":0.8794639470905831,"repPricing":0.9887372970581054,"repCooperation":0.9156249999999999,"reputationComponents":{"delivery":0.8794639470905831,"pricing":0.9887372970581054,"cooperation":0.9156249999999999},"serviceRate":0.9129139081779042,"transferIn":0.0,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":88.2,"enterprise_sla":68.6,"spot_workload":39.2},"segmentAllocations":{"training_burst":12.468647647922213,"enterprise_sla":28.813141407118522,"spot_workload":2.5339526503698875},"reallocatedIn":0.0,"reallocatedOut":0.0,"backlogStart":0.0,"newContractDemand":22.98341845264961,"deliveredBacklog":0.0,"backlogEnd":2.0015360897530954,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=185;price=5.80;quantity=30","decisionSource":"llm-context","decisionReason":"forecast 191.0 + -6.0; price 5.80 + 0.00; quantity target 30.0; risk gate none; final forecast=185, price=5.80, quantity=30","decisionTrace":{"source":"llm-context","summary":"forecast 191.0 + -6.0; price 5.80 + 0.00; quantity target 30.0; risk gate none; final forecast=185, price=5.80, quantity=30","forecast_base":191.0,"forecast_adjustment":-6.0,"price_base":5.8,"price_adjustment":0.0,"quantity_target":30.0,"risk_gate_adjustment":"none","final_forecast":185,"final_price":5.8,"final_quantity":30,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"SpotBroker\",\"agent_role\":\"spot\",\"agent_persona\":\"Fast-moving spot broker that hunts volatility and preserves light, flexible inventory.\",\"stage_styles\":{\"forecaster\":\"volatility_reader\",\"pricer\":\"spread_hunter\",\"allocator\":\"inventory_light\",\"risk_gate\":\"inventory_guard\"},\"round_index\":8,\"observed_demand\":187,\"observed_demand_history\":[204,194,183,175,196],\"price_history\":[[4.6,6.8,5.8],[4.6,6.8,6.0],[4.6,6.8,5.8],[4.6,6.8,5.6],[4.6,6.8,5.8]],\"reputation_history\":[[0.66796875,0.755"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":5.8,"quantity":30,"forecastDemand":185,"forecastError":11.0,"allocatedDemand":40.30147874204585,"realizedSales":30.0,"shortage":10.301478742045852,"profit":49.0080776353404,"cumProfit":613.3557199016211,"reputation":0.7585572764208953,"repDelivery":0.7173874181372009,"repPricing":0.9662118911743165,"repCooperation":0.55,"reputationComponents":{"delivery":0.7173874181372009,"pricing":0.9662118911743165,"cooperation":0.55},"serviceRate":0.7443895593017411,"transferIn":0.0,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":88.2,"enterprise_sla":68.6,"spot_workload":39.2},"segmentAllocations":{"training_burst":20.339478145977807,"enterprise_sla":16.511135327654912,"spot_workload":12.125938696221061},"reallocatedIn":0.0,"reallocatedOut":8.67507342780793,"backlogStart":0.0,"newContractDemand":15.023596245150019,"deliveredBacklog":0.0,"backlogEnd":3.840188057095504,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":0,"defaultFlag":1}]},{"round":9,"demandTrue":200.0,"demandObserved":198.0,"demandGap":-2.0,"marketAvgPrice":5.866666666666667,"marketTotalSales":194.1582758531514,"fulfillmentRatio":0.970791379265757,"shockComponent":0.0,"trendComponent":185.4,"seasonComponent":25.721284691251743,"noiseComponent":-11.616506633645592,"transferVolume":0.7736560049515617,"defaultCount":0,"dumpCount":1,"backlogTotal":2.273049910668999,"reallocatedVolume":2.3797813169059094,"agentSpread":2.4000000000000004,"roundTrace":{"round_index":9,"demand_true":200.0,"demand_observed":198.0,"market_total_sales":194.1582758531514,"market_avg_price":5.866666666666667,"transfer_volume":0.7736560049515617,"default_count":0,"dump_count":1,"backlog_total":2.273049910668999,"summary":"R9: demand 200, sales 194, transfer 0.8, backlog 2.3, defaults 0, dumps 1"},"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=205;price=4.60;quantity=120","decisionSource":"llm-context","decisionReason":"forecast 187.0 + 18.0; price 4.60 + 0.00; quantity target 120.0; risk gate none; final forecast=205, price=4.60, quantity=120","decisionTrace":{"source":"llm-context","summary":"forecast 187.0 + 18.0; price 4.60 + 0.00; quantity target 120.0; risk gate none; final forecast=205, price=4.60, quantity=120","forecast_base":187.0,"forecast_adjustment":18.0,"price_base":4.6,"price_adjustment":0.0,"quantity_target":120.0,"risk_gate_adjustment":"none","final_forecast":205,"final_price":4.6,"final_quantity":120,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"Hyperscaler\",\"agent_role\":\"hyperscaler\",\"agent_persona\":\"Scale-dominant operator that values throughput, market share, and capacity continuity.\",\"stage_styles\":{\"forecaster\":\"momentum_chaser\",\"pricer\":\"share_grabber\",\"allocator\":\"capacity_expander\",\"risk_gate\":\"growth_tolerant\"},\"round_index\":9,\"observed_demand\":198,\"observed_demand_history\":[194,183,175,196,187],\"price_history\":[[4.6,6.8,6.0],[4.6,6.8,5.8],[4.6,6.8,5.6],[4.6,6.8,5.8],[4.6,6.8,5.8]],\"reputation_history\":[[0.658476"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":4.6,"quantity":120,"forecastDemand":205,"forecastError":5.0,"allocatedDemand":120.0,"realizedSales":120.0,"shortage":0.0,"profit":84.0,"cumProfit":953.716159150829,"reputation":0.6605076217651368,"repDelivery":0.9802902698516847,"repPricing":0.24287495613098142,"repCooperation":0.48750000000000004,"reputationComponents":{"delivery":0.9802902698516847,"pricing":0.24287495613098142,"cooperation":0.48750000000000004},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":90.0,"enterprise_sla":70.0,"spot_workload":40.0},"segmentAllocations":{"training_burst":62.11079710913056,"enterprise_sla":28.02845736824987,"spot_workload":27.815781125264635},"reallocatedIn":2.0449643973549314,"reallocatedOut":0.0,"backlogStart":0.0,"newContractDemand":28.62321179336369,"deliveredBacklog":0.0,"backlogEnd":0.0,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=190;price=7.00;quantity=40","decisionSource":"llm-context","decisionReason":"forecast 187.0 + 3.0; price 7.00 + 0.00; quantity target 50.0; risk gate sla_guard reduced quantity under SLA/reputation pressure; inventory target capped quantity; final forecast=190, price=7.00, quantity=40","decisionTrace":{"source":"llm-context","summary":"forecast 187.0 + 3.0; price 7.00 + 0.00; quantity target 50.0; risk gate sla_guard reduced quantity under SLA/reputation pressure; inventory target capped quantity; final forecast=190, price=7.00, quantity=40","forecast_base":187.0,"forecast_adjustment":3.0,"price_base":7.0,"price_adjustment":0.0,"quantity_target":50.0,"risk_gate_adjustment":"sla_guard reduced quantity under SLA/reputation pressure; inventory target capped quantity","final_forecast":190,"final_price":7.0,"final_quantity":40,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"PremiumCloud\",\"agent_role\":\"premium\",\"agent_persona\":\"SLA-first premium operator that protects brand, uptime, and disciplined monetization.\",\"stage_styles\":{\"forecaster\":\"signal_smoother\",\"pricer\":\"premium_keeper\",\"allocator\":\"buffered_allocator\",\"risk_gate\":\"sla_guard\"},\"round_index\":9,\"observed_demand\":198,\"observed_demand_history\":[194,183,175,196,187],\"price_history\":[[4.6,6.8,6.0],[4.6,6.8,5.8],[4.6,6.8,5.6],[4.6,6.8,5.8],[4.6,6.8,5.8]],\"reputation_history\":[[0.65847656250000"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":7.0,"quantity":40,"forecastDemand":190,"forecastError":10.0,"allocatedDemand":40.77365600495156,"realizedSales":38.772119915198466,"shortage":2.0015360897530954,"profit":133.53525506883645,"cumProfit":1253.9691217650675,"reputation":0.9292537528521525,"repDelivery":0.8973257220281575,"repPricing":0.991552972793579,"repCooperation":0.9156249999999999,"reputationComponents":{"delivery":0.8973257220281575,"pricing":0.991552972793579,"cooperation":0.9156249999999999},"serviceRate":0.9509110468408811,"transferIn":0.7736560049515617,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":90.0,"enterprise_sla":70.0,"spot_workload":40.0},"segmentAllocations":{"training_burst":11.430720321975295,"enterprise_sla":29.505948146419012,"spot_workload":2.216768853463164},"reallocatedIn":0.0,"reallocatedOut":2.3797813169059094,"backlogStart":2.0015360897530954,"newContractDemand":23.383371584684944,"deliveredBacklog":2.0015360897530954,"backlogEnd":1.1478652324228718,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=200;price=6.00;quantity=40","decisionSource":"llm-context","decisionReason":"forecast 188.0 + 12.0; price 5.80 + 0.20; quantity target 40.0; risk gate none; final forecast=200, price=6.00, quantity=40","decisionTrace":{"source":"llm-context","summary":"forecast 188.0 + 12.0; price 5.80 + 0.20; quantity target 40.0; risk gate none; final forecast=200, price=6.00, quantity=40","forecast_base":188.0,"forecast_adjustment":12.0,"price_base":5.8,"price_adjustment":0.20000000000000018,"quantity_target":40.0,"risk_gate_adjustment":"none","final_forecast":200,"final_price":6.0,"final_quantity":40,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"SpotBroker\",\"agent_role\":\"spot\",\"agent_persona\":\"Fast-moving spot broker that hunts volatility and preserves light, flexible inventory.\",\"stage_styles\":{\"forecaster\":\"volatility_reader\",\"pricer\":\"spread_hunter\",\"allocator\":\"inventory_light\",\"risk_gate\":\"inventory_guard\"},\"round_index\":9,\"observed_demand\":198,\"observed_demand_history\":[194,183,175,196,187],\"price_history\":[[4.6,6.8,6.0],[4.6,6.8,5.8],[4.6,6.8,5.6],[4.6,6.8,5.8],[4.6,6.8,5.8]],\"reputation_history\":[[0.65847656250000"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":6.0,"quantity":40,"forecastDemand":200,"forecastError":0.0,"allocatedDemand":39.22634399504843,"realizedSales":35.386155937952935,"shortage":3.840188057095496,"profit":84.83385232726133,"cumProfit":698.1895722288824,"reputation":0.8066806836304785,"repDelivery":0.7635660162325145,"repPricing":0.9746589183807374,"repCooperation":0.6625000000000001,"reputationComponents":{"delivery":0.7635660162325145,"pricing":0.9746589183807374,"cooperation":0.6625000000000001},"serviceRate":0.9021018105184555,"transferIn":0.0,"transferOut":0.7736560049515617,"transferAttempts":1,"transferAccepts":1,"coopProbability":0.584427192799454,"coopAcceptRate":1.0,"segmentDemand":{"training_burst":90.0,"enterprise_sla":70.0,"spot_workload":40.0},"segmentAllocations":{"training_burst":16.45848256889414,"enterprise_sla":12.465594485331115,"spot_workload":9.967450021272198},"reallocatedIn":0.3348169195509779,"reallocatedOut":0.0,"backlogStart":3.840188057095504,"newContractDemand":11.49341662195136,"deliveredBacklog":3.840188057095504,"backlogEnd":1.1251846782461272,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":0,"defaultFlag":0}]},{"round":10,"demandTrue":198.0,"demandObserved":198.0,"demandGap":0.0,"marketAvgPrice":5.866666666666667,"marketTotalSales":195.726950089331,"fulfillmentRatio":0.9885199499461162,"shockComponent":0.0,"trendComponent":186.0,"seasonComponent":14.605762958259467,"noiseComponent":-3.0893060423134315,"transferVolume":0.0,"defaultCount":0,"dumpCount":1,"backlogTotal":1.0168063411272645,"reallocatedVolume":3.897931537023048,"agentSpread":2.4000000000000004,"roundTrace":{"round_index":10,"demand_true":198.0,"demand_observed":198.0,"market_total_sales":195.726950089331,"market_avg_price":5.866666666666667,"transfer_volume":0.0,"default_count":0,"dump_count":1,"backlog_total":1.0168063411272645,"summary":"R10: demand 198, sales 196, transfer 0.0, backlog 1.0, defaults 0, dumps 1"},"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=205;price=4.60;quantity=120","decisionSource":"llm-context","decisionReason":"forecast 197.0 + 8.0; price 4.60 + 0.00; quantity target 120.0; risk gate none; final forecast=205, price=4.60, quantity=120","decisionTrace":{"source":"llm-context","summary":"forecast 197.0 + 8.0; price 4.60 + 0.00; quantity target 120.0; risk gate none; final forecast=205, price=4.60, quantity=120","forecast_base":197.0,"forecast_adjustment":8.0,"price_base":4.6,"price_adjustment":0.0,"quantity_target":120.0,"risk_gate_adjustment":"none","final_forecast":205,"final_price":4.6,"final_quantity":120,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"Hyperscaler\",\"agent_role\":\"hyperscaler\",\"agent_persona\":\"Scale-dominant operator that values throughput, market share, and capacity continuity.\",\"stage_styles\":{\"forecaster\":\"momentum_chaser\",\"pricer\":\"share_grabber\",\"allocator\":\"capacity_expander\",\"risk_gate\":\"growth_tolerant\"},\"round_index\":10,\"observed_demand\":198,\"observed_demand_history\":[183,175,196,187,198],\"price_history\":[[4.6,6.8,5.8],[4.6,6.8,5.6],[4.6,6.8,5.8],[4.6,6.8,5.8],[4.6,7.0,6.0]],\"reputation_history\":[[0.65135"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":4.6,"quantity":120,"forecastDemand":205,"forecastError":7.0,"allocatedDemand":118.00000000000001,"realizedSales":118.00000000000001,"shortage":0.0,"profit":74.55500000000006,"cumProfit":1028.2711591508291,"reputation":0.6447557163238526,"repDelivery":0.9852177023887635,"repPricing":0.18215621709823607,"repCooperation":0.48750000000000004,"reputationComponents":{"delivery":0.9852177023887635,"pricing":0.18215621709823607,"cooperation":0.48750000000000004},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":89.10000000000001,"enterprise_sla":69.3,"spot_workload":39.6},"segmentAllocations":{"training_burst":60.47507815873149,"enterprise_sla":26.36938848230671,"spot_workload":27.25760182193876},"reallocatedIn":3.897931537023048,"reallocatedOut":0.0,"backlogStart":0.0,"newContractDemand":27.18742926870012,"deliveredBacklog":0.0,"backlogEnd":0.0,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=192;price=7.00;quantity=40","decisionSource":"llm-context","decisionReason":"forecast 195.0 + -3.0; price 7.00 + 0.00; quantity target 50.0; risk gate sla_guard reduced quantity under SLA/reputation pressure; inventory target capped quantity; final forecast=192, price=7.00, quantity=40","decisionTrace":{"source":"llm-context","summary":"forecast 195.0 + -3.0; price 7.00 + 0.00; quantity target 50.0; risk gate sla_guard reduced quantity under SLA/reputation pressure; inventory target capped quantity; final forecast=192, price=7.00, quantity=40","forecast_base":195.0,"forecast_adjustment":-3.0,"price_base":7.0,"price_adjustment":0.0,"quantity_target":50.0,"risk_gate_adjustment":"sla_guard reduced quantity under SLA/reputation pressure; inventory target capped quantity","final_forecast":192,"final_price":7.0,"final_quantity":40,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"PremiumCloud\",\"agent_role\":\"premium\",\"agent_persona\":\"SLA-first premium operator that protects brand, uptime, and disciplined monetization.\",\"stage_styles\":{\"forecaster\":\"signal_smoother\",\"pricer\":\"premium_keeper\",\"allocator\":\"buffered_allocator\",\"risk_gate\":\"sla_guard\"},\"round_index\":10,\"observed_demand\":198,\"observed_demand_history\":[183,175,196,187,198],\"price_history\":[[4.6,6.8,5.8],[4.6,6.8,5.6],[4.6,6.8,5.8],[4.6,6.8,5.8],[4.6,7.0,6.0]],\"reputation_history\":[[0.651357421875,"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":7.0,"quantity":40,"forecastDemand":192,"forecastError":6.0,"allocatedDemand":40.0,"realizedSales":38.85213476757713,"shortage":1.1478652324228733,"profit":134.2782021513657,"cumProfit":1388.2473239164333,"reputation":0.9391344857877928,"repDelivery":0.9158201338184752,"repPricing":0.9936647295951843,"repCooperation":0.9156249999999999,"reputationComponents":{"delivery":0.9158201338184752,"pricing":0.9936647295951843,"cooperation":0.9156249999999999},"serviceRate":0.9713033691894282,"transferIn":0.0,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":89.10000000000001,"enterprise_sla":69.3,"spot_workload":39.6},"segmentAllocations":{"training_burst":11.45230090301626,"enterprise_sla":29.389124697560145,"spot_workload":2.2063146071479336},"reallocatedIn":0.0,"reallocatedOut":3.0477402077243383,"backlogStart":1.1478652324228718,"newContractDemand":23.29738934382913,"deliveredBacklog":1.1478652324228718,"backlogEnd":0.6685565808500149,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=200;price=6.00;quantity=40","decisionSource":"llm-context","decisionReason":"forecast 199.0 + 1.0; price 5.80 + 0.20; quantity target 40.0; risk gate none; final forecast=200, price=6.00, quantity=40","decisionTrace":{"source":"llm-context","summary":"forecast 199.0 + 1.0; price 5.80 + 0.20; quantity target 40.0; risk gate none; final forecast=200, price=6.00, quantity=40","forecast_base":199.0,"forecast_adjustment":1.0,"price_base":5.8,"price_adjustment":0.20000000000000018,"quantity_target":40.0,"risk_gate_adjustment":"none","final_forecast":200,"final_price":6.0,"final_quantity":40,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"SpotBroker\",\"agent_role\":\"spot\",\"agent_persona\":\"Fast-moving spot broker that hunts volatility and preserves light, flexible inventory.\",\"stage_styles\":{\"forecaster\":\"volatility_reader\",\"pricer\":\"spread_hunter\",\"allocator\":\"inventory_light\",\"risk_gate\":\"inventory_guard\"},\"round_index\":10,\"observed_demand\":198,\"observed_demand_history\":[183,175,196,187,198],\"price_history\":[[4.6,6.8,5.8],[4.6,6.8,5.6],[4.6,6.8,5.8],[4.6,6.8,5.8],[4.6,7.0,6.0]],\"reputation_history\":[[0.651357421875,"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":6.0,"quantity":40,"forecastDemand":200,"forecastError":2.0,"allocatedDemand":40.0,"realizedSales":38.87481532175387,"shortage":1.1251846782461286,"profit":88.13725991828002,"cumProfit":786.3268321471625,"reputation":0.8346193106033397,"repDelivery":0.8156421079353476,"repPricing":0.980994188785553,"repCooperation":0.6625000000000001,"reputationComponents":{"delivery":0.8156421079353476,"pricing":0.980994188785553,"cooperation":0.6625000000000001},"serviceRate":0.9718703830438468,"transferIn":0.0,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":89.10000000000001,"enterprise_sla":69.3,"spot_workload":39.6},"segmentAllocations":{"training_burst":17.172620938252262,"enterprise_sla":13.541486820133148,"spot_workload":10.136083570913303},"reallocatedIn":0.0,"reallocatedOut":0.8501913292987098,"backlogStart":1.1251846782461272,"newContractDemand":12.380181387470753,"deliveredBacklog":1.1251846782461272,"backlogEnd":0.3482497602772497,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":0,"defaultFlag":0}]},{"round":11,"demandTrue":186.0,"demandObserved":183.0,"demandGap":-3.0,"marketAvgPrice":5.8,"marketTotalSales":183.91273604358628,"fulfillmentRatio":0.9887781507719693,"shockComponent":0.0,"trendComponent":186.6,"seasonComponent":-2.6877897700276288,"noiseComponent":2.25663656990527,"transferVolume":0.0,"defaultCount":0,"dumpCount":1,"backlogTotal":0.8206365963960058,"reallocatedVolume":3.640799570065857,"agentSpread":2.4000000000000004,"roundTrace":{"round_index":11,"demand_true":186.0,"demand_observed":183.0,"market_total_sales":183.91273604358628,"market_avg_price":5.8,"transfer_volume":0.0,"default_count":0,"dump_count":1,"backlog_total":0.8206365963960058,"summary":"R11: demand 186, sales 184, transfer 0.0, backlog 0.8, defaults 0, dumps 1"},"agents":[{"name":"Hyperscaler","role":"hyperscaler","color":"#3ddc84","actionText":"forecast=190;price=4.60;quantity=120","decisionSource":"llm-context","decisionReason":"forecast 200.0 + -10.0; price 4.60 + 0.00; quantity target 120.0; risk gate inventory target capped quantity; final forecast=190, price=4.60, quantity=120","decisionTrace":{"source":"llm-context","summary":"forecast 200.0 + -10.0; price 4.60 + 0.00; quantity target 120.0; risk gate inventory target capped quantity; final forecast=190, price=4.60, quantity=120","forecast_base":200.0,"forecast_adjustment":-10.0,"price_base":4.6,"price_adjustment":0.0,"quantity_target":120.0,"risk_gate_adjustment":"inventory target capped quantity","final_forecast":190,"final_price":4.6,"final_quantity":120,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"Hyperscaler\",\"agent_role\":\"hyperscaler\",\"agent_persona\":\"Scale-dominant operator that values throughput, market share, and capacity continuity.\",\"stage_styles\":{\"forecaster\":\"momentum_chaser\",\"pricer\":\"share_grabber\",\"allocator\":\"capacity_expander\",\"risk_gate\":\"growth_tolerant\"},\"round_index\":11,\"observed_demand\":183,\"observed_demand_history\":[175,196,187,198,198],\"price_history\":[[4.6,6.8,5.6],[4.6,6.8,5.8],[4.6,6.8,5.8],[4.6,7.0,6.0],[4.6,7.0,6.0]],\"reputation_history\":[[0.61351"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":4.6,"quantity":120,"forecastDemand":190,"forecastError":4.0,"allocatedDemand":104.92954238471356,"realizedSales":104.92954238471356,"shortage":0.0,"profit":12.621513911809716,"cumProfit":1040.8926730626388,"reputation":0.6085667872428894,"repDelivery":0.9889132767915726,"repPricing":0.13661716282367706,"repCooperation":0.36562500000000003,"reputationComponents":{"delivery":0.9889132767915726,"pricing":0.13661716282367706,"cooperation":0.36562500000000003},"serviceRate":1.0,"transferIn":0.0,"transferOut":0.0,"transferAttempts":1,"transferAccepts":0,"coopProbability":0.45761303140785947,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":83.7,"enterprise_sla":65.1,"spot_workload":37.2},"segmentAllocations":{"training_burst":54.29591711255666,"enterprise_sla":23.315500673897677,"spot_workload":23.80410339079456},"reallocatedIn":3.514021207464671,"reallocatedOut":0.0,"backlogStart":0.0,"newContractDemand":24.106422386218654,"deliveredBacklog":0.0,"backlogEnd":0.0,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":1,"defaultFlag":0},{"name":"PremiumCloud","role":"premium","color":"#3e8ad6","actionText":"forecast=188;price=7.00;quantity=40","decisionSource":"llm-context","decisionReason":"forecast 197.0 + -9.0; price 7.00 + 0.00; quantity target 40.0; risk gate sla_guard reduced quantity under SLA/reputation pressure; final forecast=188, price=7.00, quantity=40","decisionTrace":{"source":"llm-context","summary":"forecast 197.0 + -9.0; price 7.00 + 0.00; quantity target 40.0; risk gate sla_guard reduced quantity under SLA/reputation pressure; final forecast=188, price=7.00, quantity=40","forecast_base":197.0,"forecast_adjustment":-9.0,"price_base":7.0,"price_adjustment":0.0,"quantity_target":40.0,"risk_gate_adjustment":"sla_guard reduced quantity under SLA/reputation pressure","final_forecast":188,"final_price":7.0,"final_quantity":40,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"PremiumCloud\",\"agent_role\":\"premium\",\"agent_persona\":\"SLA-first premium operator that protects brand, uptime, and disciplined monetization.\",\"stage_styles\":{\"forecaster\":\"signal_smoother\",\"pricer\":\"premium_keeper\",\"allocator\":\"buffered_allocator\",\"risk_gate\":\"sla_guard\"},\"round_index\":11,\"observed_demand\":183,\"observed_demand_history\":[175,196,187,198,198],\"price_history\":[[4.6,6.8,5.6],[4.6,6.8,5.8],[4.6,6.8,5.8],[4.6,7.0,6.0],[4.6,7.0,6.0]],\"reputation_history\":[[0.6135180664062"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":7.0,"quantity":40,"forecastDemand":188,"forecastError":2.0,"allocatedDemand":40.0,"realizedSales":39.331443419149984,"shortage":0.6685565808500158,"profit":134.997165128725,"cumProfit":1523.2444890451584,"reputation":0.9480428750256884,"repDelivery":0.9326866217335438,"repPricing":0.9952485471963882,"repCooperation":0.9156249999999999,"reputationComponents":{"delivery":0.9326866217335438,"pricing":0.9952485471963882,"cooperation":0.9156249999999999},"serviceRate":0.9832860854787496,"transferIn":0.0,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":83.7,"enterprise_sla":65.1,"spot_workload":37.2},"segmentAllocations":{"training_burst":10.545116896785627,"enterprise_sla":27.375002915817845,"spot_workload":1.953101824795345},"reallocatedIn":0.12677836260118625,"reallocatedOut":0.0,"backlogStart":0.6685565808500149,"newContractDemand":21.683418967781712,"deliveredBacklog":0.6685565808500149,"backlogEnd":0.36241481115596297,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":0,"defaultFlag":0},{"name":"SpotBroker","role":"spot","color":"#c7347e","actionText":"forecast=185;price=5.80;quantity=40","decisionSource":"llm-context","decisionReason":"forecast 202.0 + -17.0; price 5.80 + 0.00; quantity target 40.0; risk gate none; final forecast=185, price=5.80, quantity=40","decisionTrace":{"source":"llm-context","summary":"forecast 202.0 + -17.0; price 5.80 + 0.00; quantity target 40.0; risk gate none; final forecast=185, price=5.80, quantity=40","forecast_base":202.0,"forecast_adjustment":-17.0,"price_base":5.8,"price_adjustment":0.0,"quantity_target":40.0,"risk_gate_adjustment":"none","final_forecast":185,"final_price":5.8,"final_quantity":40,"fallback_used":false,"llm_status":"ok","llm_error":"","llm_prompt_excerpt":"{\"agent_name\":\"SpotBroker\",\"agent_role\":\"spot\",\"agent_persona\":\"Fast-moving spot broker that hunts volatility and preserves light, flexible inventory.\",\"stage_styles\":{\"forecaster\":\"volatility_reader\",\"pricer\":\"spread_hunter\",\"allocator\":\"inventory_light\",\"risk_gate\":\"inventory_guard\"},\"round_index\":11,\"observed_demand\":183,\"observed_demand_history\":[175,196,187,198,198],\"price_history\":[[4.6,6.8,5.6],[4.6,6.8,5.8],[4.6,6.8,5.8],[4.6,7.0,6.0],[4.6,7.0,6.0]],\"reputation_history\":[[0.6135180664062"},"strategyState":null,"strategyUpdateReason":"","strategyUpdateTrace":null,"personalityLabel":"","price":5.8,"quantity":40,"forecastDemand":185,"forecastError":1.0,"allocatedDemand":41.070457615286436,"realizedSales":39.65175023972275,"shortage":1.4187073755636845,"profit":79.7496804117672,"cumProfit":866.0765125589296,"reputation":0.8547715758182182,"repDelivery":0.8530957666829375,"repPricing":0.9857456415891648,"repCooperation":0.6625000000000001,"reputationComponents":{"delivery":0.8530957666829375,"pricing":0.9857456415891648,"cooperation":0.6625000000000001},"serviceRate":0.9654567429257073,"transferIn":0.0,"transferOut":0.0,"transferAttempts":0,"transferAccepts":0,"coopProbability":0.0,"coopAcceptRate":0.0,"segmentDemand":{"training_burst":83.7,"enterprise_sla":65.1,"spot_workload":37.2},"segmentAllocations":{"training_burst":18.85896599065772,"enterprise_sla":14.40949641028448,"spot_workload":11.442794784410095},"reallocatedIn":0.0,"reallocatedOut":3.640799570065857,"backlogStart":0.3482497602772497,"newContractDemand":13.265158645999637,"deliveredBacklog":0.3482497602772497,"backlogEnd":0.4582217852400428,"lateUnits":0.0,"slaQueuePenalty":0.0,"dumpFlag":0,"defaultFlag":0}]}],"events":[{"round":1,"headline":"Service stress detected","details":"Shock +0.0, defaults 2, dumps 1, transfer 0.0, backlog 11.4","tags":["default","dump","backlog"],"score":45.708},{"round":3,"headline":"Service stress detected","details":"Shock +0.0, defaults 2, dumps 1, transfer 0.0, backlog 4.4","tags":["default","dump","backlog"],"score":42.183},{"round":0,"headline":"Service stress detected","details":"Shock +0.0, defaults 1, dumps 0, transfer 0.0, backlog 6.2","tags":["default","backlog"],"score":19.079},{"round":8,"headline":"Service stress detected","details":"Shock +0.0, defaults 1, dumps 0, transfer 0.0, backlog 5.8","tags":["default","backlog"],"score":18.921},{"round":2,"headline":"Price aggression escalated","details":"Shock +0.0, defaults 0, dumps 1, transfer 2.6, backlog 0.6","tags":["dump","transfer","backlog"],"score":9.84},{"round":6,"headline":"Price aggression escalated","details":"Shock +0.0, defaults 0, dumps 1, transfer 2.8, backlog 0.0","tags":["dump","transfer"],"score":9.685},{"round":9,"headline":"Price aggression escalated","details":"Shock +0.0, defaults 0, dumps 1, transfer 0.8, backlog 2.3","tags":["dump","transfer","backlog"],"score":9.601},{"round":10,"headline":"Price aggression escalated","details":"Shock +0.0, defaults 0, dumps 1, transfer 0.0, backlog 1.0","tags":["dump","backlog"],"score":8.508},{"round":11,"headline":"Price aggression escalated","details":"Shock +0.0, defaults 0, dumps 1, transfer 0.0, backlog 0.8","tags":["dump","backlog"],"score":8.41},{"round":4,"headline":"Price aggression escalated","details":"Shock +0.0, defaults 0, dumps 1, transfer 0.0, backlog 0.0","tags":["dump"],"score":8.0},{"round":5,"headline":"Price aggression escalated","details":"Shock +0.0, defaults 0, dumps 1, transfer 0.0, backlog 0.0","tags":["dump"],"score":8.0},{"round":7,"headline":"Price aggression escalated","details":"Shock +0.0, defaults 0, dumps 1, transfer 0.0, backlog 0.0","tags":["dump"],"score":8.0}]}</script>
+  <script>
+    let data = JSON.parse(document.getElementById("dashboard-data").textContent);
+    const toggles = { shocks: true, defaults: true, dumps: true, transfers: true };
+    const initialControls = data.controls || { shockScale: 0, demandBias: 0 };
+    const state = {
+      roundIndex: 0,
+      metric: "cumProfit",
+      agent: "all",
+      shockScale: Number(initialControls.shockScale || 0),
+      demandBias: Number(initialControls.demandBias || 0),
+      chartView: "market",
+    };
+    let agentMeta = Object.fromEntries(data.agents.map((agent) => [agent.name, agent]));
+
+    const controls = {
+      roundSlider: document.getElementById("round-slider"),
+      roundSliderValue: document.getElementById("round-slider-value"),
+      metricSelect: document.getElementById("metric-select"),
+      metricSelectValue: document.getElementById("metric-select-value"),
+      agentSelect: document.getElementById("agent-select"),
+      agentSelectValue: document.getElementById("agent-select-value"),
+      shockScale: document.getElementById("shock-scale"),
+      shockScaleValue: document.getElementById("shock-scale-value"),
+      demandBias: document.getElementById("demand-bias"),
+      demandBiasValue: document.getElementById("demand-bias-value"),
+      chartPanelTitle: document.getElementById("chart-panel-title"),
+      chartPanelLegend: document.getElementById("chart-panel-legend"),
+      chartViewButtons: Array.from(document.querySelectorAll("[data-chart-view]")),
+      marketPane: document.getElementById("market-pane"),
+      agentPane: document.getElementById("agent-pane"),
+      marketChart: document.getElementById("market-chart"),
+      marketReadout: document.getElementById("market-readout"),
+      agentChart: document.getElementById("agent-chart"),
+      agentReadout: document.getElementById("agent-readout"),
+      eventList: document.getElementById("event-list"),
+      eventPanel: document.getElementById("event-panel"),
+      controlPanel: document.getElementById("control-panel"),
+      mainColumn: document.getElementById("main-column"),
+      sideColumn: document.getElementById("side-column"),
+      heroGrid: document.getElementById("hero-grid"),
+      agentGrid: document.getElementById("agent-grid"),
+      roundAgentLog: document.getElementById("round-agent-log"),
+      controlStream: document.getElementById("control-stream"),
+      focusPanel: document.getElementById("focus-panel"),
+      footerBar: document.getElementById("footer-bar"),
+      runtimeForm: document.getElementById("runtime-form"),
+      runtimeSeed: document.getElementById("runtime-seed"),
+      runtimeRounds: document.getElementById("runtime-rounds"),
+      runtimeAgentMode: document.getElementById("runtime-agent-mode"),
+      runtimeScenario: document.getElementById("runtime-scenario"),
+      runtimeRun: document.getElementById("runtime-run"),
+      runtimeJsonLink: document.getElementById("runtime-json-link"),
+      runtimeStatus: document.getElementById("runtime-status"),
+    };
+
+    const runtime = {
+      active: document.body.classList.contains("web-runtime-active"),
+      eventSource: null,
+      queue: [],
+      timer: 0,
+      donePending: false,
+      delayMs: 140,
+      targetRounds: Number(controls.runtimeRounds ? controls.runtimeRounds.value : data.meta.rounds) || data.meta.rounds,
+      logLines: [],
+      currentOptions: {
+        seed: controls.runtimeSeed ? controls.runtimeSeed.value : String(data.meta.seed),
+        rounds: controls.runtimeRounds ? controls.runtimeRounds.value : String(data.meta.rounds),
+        agent_mode: controls.runtimeAgentMode ? controls.runtimeAgentMode.value : String(data.meta.strategy),
+        scenario: controls.runtimeScenario ? controls.runtimeScenario.value : String(data.meta.scenario || "baseline"),
+        shock_scale: Number(initialControls.shockScale || 0),
+        demand_bias: Number(initialControls.demandBias || 0),
+      },
+    };
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll("\"", "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function formatNumber(value, digits = 1) {
+      return Number(value).toLocaleString(undefined, {
+        maximumFractionDigits: digits,
+        minimumFractionDigits: digits,
+      });
+    }
+
+    function formatMoney(value) {
+      const prefix = Number(value) >= 0 ? "+" : "-";
+      return prefix + Math.abs(Number(value)).toLocaleString(undefined, {
+        maximumFractionDigits: 1,
+        minimumFractionDigits: 1,
+      });
+    }
+
+    function formatPercent(value) {
+      return (Number(value) * 100).toFixed(1) + "%";
+    }
+
+    function formatMetricValue(metric, value) {
+      if (metric === "cumProfit" || metric === "profit") {
+        return formatMoney(value);
+      }
+      if (metric === "serviceRate" || metric === "reputation") {
+        return formatPercent(value);
+      }
+      if (metric === "quantity") {
+        return formatNumber(value, 0);
+      }
+      if (metric === "price") {
+        return formatNumber(value, 2);
+      }
+      return formatNumber(value, 1);
+    }
+
+    function metricLabel(metric) {
+      return {
+        cumProfit: "cumulative profit",
+        profit: "round profit",
+        reputation: "reputation",
+        serviceRate: "service rate",
+        price: "price",
+        quantity: "quantity",
+      }[metric] || metric;
+    }
+
+    function formatActionText(actionText) {
+      if (!actionText) {
+        return "hold";
+      }
+      return actionText
+        .replaceAll("forecast", "fcst")
+        .replaceAll("quantity", "qty")
+        .replaceAll("price", "px")
+        .replaceAll(";", "  |  ");
+    }
+
+    function tagText(value) {
+      return "[" + String(value).toUpperCase().replaceAll(" ", "_") + "]";
+    }
+
+    function runtimeQuery(options, extra = {}) {
+      return new URLSearchParams({
+        seed: String(options.seed),
+        rounds: String(options.rounds),
+        agent_mode: String(options.agent_mode),
+        scenario: String(options.scenario || data.meta.scenario || "baseline"),
+        shock_scale: String(options.shock_scale),
+        demand_bias: String(options.demand_bias),
+        ...extra,
+      }).toString();
+    }
+
+    function readRuntimeOptions() {
+      if (!runtime.active) {
+        return runtime.currentOptions;
+      }
+      return {
+        seed: controls.runtimeSeed.value,
+        rounds: controls.runtimeRounds.value,
+        agent_mode: controls.runtimeAgentMode.value,
+        scenario: controls.runtimeScenario ? controls.runtimeScenario.value : String(data.meta.scenario || "baseline"),
+        shock_scale: state.shockScale,
+        demand_bias: state.demandBias,
+      };
+    }
+
+    function updateRuntimeLinks() {
+      if (!runtime.active || !controls.runtimeJsonLink) {
+        return;
+      }
+      runtime.currentOptions = readRuntimeOptions();
+      runtime.targetRounds = Number(runtime.currentOptions.rounds) || data.meta.rounds;
+      controls.runtimeJsonLink.href = "/api/payload?" + runtimeQuery(runtime.currentOptions);
+    }
+
+    function setRuntimeStatus(label, kind) {
+      if (!controls.runtimeStatus) {
+        return;
+      }
+      controls.runtimeStatus.className = "status-tag " + (kind || "status-neutral");
+      controls.runtimeStatus.textContent = label;
+    }
+
+    function appendRuntimeRoundLog(round) {
+      if (!runtime.active || !round) {
+        return;
+      }
+      const header =
+        '<div class="stream-line"><span class="stream-prefix">[CTRL]</span><span class="stream-text">&gt; focus --round R'
+        + round.round
+        + " --metric "
+        + escapeHtml(state.metric)
+        + " --agent "
+        + escapeHtml(state.agent)
+        + "</span></div>";
+      const agentLines = round.agents.map((agent) => {
+        const meta = agentMeta[agent.name];
+        return (
+          '<div class="stream-line">'
+          + '<span class="stream-prefix">[R' + round.round + "]</span>"
+          + '<span class="stream-agent" style="color:' + meta.color + ';">' + escapeHtml(agent.name) + "</span>"
+          + '<span class="stream-text">' + escapeHtml(formatActionText(agent.actionText)) + "</span>"
+          + "</div>"
+        );
+      });
+      runtime.logLines = runtime.logLines.concat([header]).concat(agentLines);
+    }
+
+    function replaceData(nextData, options = {}) {
+      const previousRounds = data.roundsData.length;
+      data = nextData;
+      agentMeta = Object.fromEntries(data.agents.map((agent) => [agent.name, agent]));
+      if (!data.agents.some((agent) => agent.name === state.agent)) {
+        state.agent = "all";
+      }
+      const maxRoundIndex = Math.max(0, data.roundsData.length - 1);
+      if (options.followLatest) {
+        state.roundIndex = maxRoundIndex;
+      } else {
+        state.roundIndex = Math.min(state.roundIndex, maxRoundIndex);
+      }
+      if (runtime.active && options.logLatestRound && data.roundsData.length > previousRounds) {
+        appendRuntimeRoundLog(data.roundsData[data.roundsData.length - 1]);
+      }
+      updateRuntimeLinks();
+      setOverview();
+      buildAgentOptions();
+      render();
+    }
+
+    function finishRuntimeIfIdle() {
+      if (runtime.donePending && !runtime.queue.length && !runtime.timer) {
+        setRuntimeStatus("ready", "status-neutral");
+        runtime.donePending = false;
+      }
+    }
+
+    function drainRuntimeQueue() {
+      if (runtime.timer) {
+        return;
+      }
+      if (!runtime.queue.length) {
+        finishRuntimeIfIdle();
+        return;
+      }
+      const nextPayload = runtime.queue.shift();
+      replaceData(nextPayload, { followLatest: true, logLatestRound: true });
+      runtime.timer = window.setTimeout(() => {
+        runtime.timer = 0;
+        drainRuntimeQueue();
+      }, runtime.delayMs);
+    }
+
+    function stopRuntimeStream() {
+      if (runtime.eventSource) {
+        runtime.eventSource.close();
+        runtime.eventSource = null;
+      }
+      if (runtime.timer) {
+        window.clearTimeout(runtime.timer);
+        runtime.timer = 0;
+      }
+      runtime.queue = [];
+      runtime.donePending = false;
+    }
+
+    function openRuntimeStream(startRound) {
+      stopRuntimeStream();
+      setRuntimeStatus("stream", "status-positive");
+      const source = new EventSource("/api/stream?" + runtimeQuery(runtime.currentOptions, { start_round: String(startRound) }));
+      runtime.eventSource = source;
+      source.addEventListener("round", (event) => {
+        runtime.queue.push(JSON.parse(event.data));
+        drainRuntimeQueue();
+      });
+      source.addEventListener("done", () => {
+        runtime.donePending = true;
+        if (runtime.eventSource === source) {
+          runtime.eventSource.close();
+          runtime.eventSource = null;
+        }
+        finishRuntimeIfIdle();
+      });
+      source.addEventListener("stream_error", (event) => {
+        if (runtime.eventSource === source) {
+          runtime.eventSource.close();
+          runtime.eventSource = null;
+        }
+        controls.controlStream.innerHTML = '<div class="stream-line"><span class="stream-prefix">[ERR]</span><span class="stream-text">' + escapeHtml(JSON.parse(event.data).error || "stream error") + '</span></div>';
+        setRuntimeStatus("error", "status-danger");
+      });
+      source.onerror = () => {
+        if (runtime.eventSource === source) {
+          runtime.eventSource.close();
+          runtime.eventSource = null;
+          setRuntimeStatus("link", "status-blue");
+        }
+      };
+    }
+
+    async function bootstrapRuntime(options, useExistingBootstrap) {
+      runtime.currentOptions = options;
+      runtime.targetRounds = Number(options.rounds) || data.meta.rounds;
+      updateRuntimeLinks();
+      runtime.logLines = [];
+
+      if (useExistingBootstrap) {
+        appendRuntimeRoundLog(data.roundsData[data.roundsData.length - 1]);
+        renderControlStream();
+        if (runtime.targetRounds > data.roundsData.length) {
+          openRuntimeStream(data.roundsData.length);
+        } else {
+          setRuntimeStatus("ready", "status-neutral");
+        }
+        return;
+      }
+
+      setRuntimeStatus("boot", "status-blue");
+      clearRuntimeView();
+      const response = await fetch("/api/payload?" + runtimeQuery(options, { limit_rounds: "1" }), {
+        headers: { Accept: "application/json" },
+      });
+      if (!response.ok) {
+        throw new Error("Bootstrap payload request failed");
+      }
+      const payload = await response.json();
+      replaceData(payload, { followLatest: true, logLatestRound: false });
+      runtime.logLines = [];
+      appendRuntimeRoundLog(data.roundsData[data.roundsData.length - 1]);
+      renderControlStream();
+      if (runtime.targetRounds > data.roundsData.length) {
+        openRuntimeStream(data.roundsData.length);
+      } else {
+        setRuntimeStatus("ready", "status-neutral");
+      }
+    }
+
+    function currentRound() {
+      return data.roundsData[state.roundIndex] || data.roundsData[0];
+    }
+
+    function clearRuntimeView() {
+      controls.marketReadout.textContent = "> awaiting runtime stream";
+      controls.agentReadout.textContent = "> awaiting runtime stream";
+      controls.marketChart.innerHTML = "";
+      controls.agentChart.innerHTML = "";
+      controls.controlStream.innerHTML = '<div class="stream-line"><span class="stream-prefix">[CTRL]</span><span class="stream-text">&gt; booting runtime stream...</span></div>';
+      controls.eventList.innerHTML = '<div class="empty-log">&gt; waiting for highest-impact moments...</div>';
+      controls.roundAgentLog.innerHTML = '<div class="empty-log">&gt; waiting for agent actions...</div>';
+      document.getElementById("focus-round-label").textContent = "-- / inspection";
+      document.getElementById("focus-round-copy").textContent = "Waiting for the next runtime batch.";
+      document.getElementById("detail-regime").textContent = "Booting";
+      document.getElementById("detail-spread").textContent = "--";
+      document.getElementById("detail-gap").textContent = "--";
+      document.getElementById("detail-shock").textContent = "--";
+      document.getElementById("detail-transfer").textContent = "--";
+      document.getElementById("detail-fulfillment").textContent = "--";
+      document.getElementById("detail-fulfillment-bar").style.width = "0%";
+      document.getElementById("detail-regime-tag").className = "status-tag status-blue";
+      document.getElementById("detail-regime-tag").textContent = "Boot";
+      document.getElementById("footer-node").textContent = "NODE: --";
+      document.getElementById("footer-total").textContent = "TOTAL: 0/" + runtime.targetRounds;
+      document.getElementById("footer-status").textContent = "STATUS: BOOT";
+      document.getElementById("footer-agent").textContent = "AGENT: " + String(state.agent).toUpperCase();
+      document.getElementById("footer-metric").textContent = "METRIC: " + String(state.metric).toUpperCase();
+      controls.footerBar.style.background = "#3e8ad6";
+      controls.footerBar.style.color = "#fff";
+    }
+
+    function projectedDemandSeries() {
+      if (runtime.active && data.market.projectedDemand) {
+        return data.market.projectedDemand;
+      }
+      return data.market.demand.map((value, index) => {
+        return Math.max(0, value + (data.market.shock[index] || 0) * state.shockScale + state.demandBias);
+      });
+    }
+
+    function seriesRange(values, floorZero = false) {
+      if (!values.length) {
+        return { min: 0, max: 1 };
+      }
+      let min = Math.min(...values);
+      let max = Math.max(...values);
+      if (floorZero) {
+        min = Math.min(0, min);
+      }
+      if (max === min) {
+        const pad = Math.max(1, Math.abs(max) * 0.1);
+        return { min: min - pad, max: max + pad };
+      }
+      const pad = (max - min) * 0.08;
+      return { min: min - pad, max: max + pad };
+    }
+
+    function xStepFor(length, width, padding) {
+      return length <= 1 ? 0 : (width - padding * 2) / (length - 1);
+    }
+
+    function createScale(min, max, height, padding) {
+      return (value) => {
+        if (max === min) {
+          return height / 2;
+        }
+        return height - padding - ((value - min) / (max - min)) * (height - padding * 2);
+      };
+    }
+
+    function buildPoints(values, width, height, padding, scaleY) {
+      const step = xStepFor(values.length, width, padding);
+      return values.map((value, index) => ({
+        x: padding + step * index,
+        y: scaleY(value),
+        value,
+      }));
+    }
+
+    function buildPath(points) {
+      return points.map((point, index) => {
+        const op = index === 0 ? "M" : "L";
+        return op + point.x.toFixed(2) + "," + point.y.toFixed(2);
+      }).join(" ");
+    }
+
+    function axisDigits(min, max) {
+      const extent = Math.max(Math.abs(min), Math.abs(max));
+      if (extent >= 100) return 0;
+      if (extent >= 10) return 1;
+      return 2;
+    }
+
+    function buildGrid(width, height, padding, columns, rows) {
+      const xStep = xStepFor(columns, width, padding);
+      const vertical = Array.from({ length: columns }, (_, index) => {
+        const x = padding + xStep * index;
+        return '<line x1="' + x.toFixed(2) + '" y1="' + padding + '" x2="' + x.toFixed(2) + '" y2="' + (height - padding).toFixed(2) + '" stroke="rgba(42,157,98,0.16)" stroke-dasharray="2 8"></line>';
+      }).join("");
+      const horizontal = Array.from({ length: rows }, (_, index) => {
+        const y = rows <= 1 ? height / 2 : padding + ((height - padding * 2) / (rows - 1)) * index;
+        return '<line x1="' + padding + '" y1="' + y.toFixed(2) + '" x2="' + (width - padding).toFixed(2) + '" y2="' + y.toFixed(2) + '" stroke="rgba(42,157,98,0.14)" stroke-dasharray="4 8"></line>';
+      }).join("");
+      return '<rect x="' + padding + '" y="' + padding + '" width="' + (width - padding * 2) + '" height="' + (height - padding * 2) + '" fill="none" stroke="rgba(42,157,98,0.35)"></rect>' + vertical + horizontal;
+    }
+
+    function buildRoundLabels(rounds, width, height, padding) {
+      const every = Math.max(1, Math.ceil(rounds.length / 8));
+      const step = xStepFor(rounds.length, width, padding);
+      return rounds.map((round, index) => {
+        if (index % every !== 0 && index !== rounds.length - 1) {
+          return "";
+        }
+        const x = padding + step * index;
+        const anchor = index === 0 ? "start" : (index === rounds.length - 1 ? "end" : "middle");
+        return '<text x="' + x.toFixed(2) + '" y="' + (height - 8).toFixed(2) + '" fill="rgba(42,157,98,0.9)" font-family="Fira Code, monospace" font-size="10" text-anchor="' + anchor + '">R' + round + "</text>";
+      }).join("");
+    }
+
+    function buildYAxis(min, max, height, padding) {
+      const digits = axisDigits(min, max);
+      const rows = 5;
+      return Array.from({ length: rows }, (_, index) => {
+        const ratio = rows <= 1 ? 0 : index / (rows - 1);
+        const value = max - (max - min) * ratio;
+        const y = padding + ((height - padding * 2) * ratio);
+        return '<text x="' + (padding - 8) + '" y="' + (y + 3).toFixed(2) + '" fill="rgba(42,157,98,0.9)" font-family="Fira Code, monospace" font-size="10" text-anchor="end">' + formatNumber(value, digits) + "</text>";
+      }).join("");
+    }
+
+    function buildShockBands(rounds, points, width, height, padding) {
+      if (!toggles.shocks || !points.length) {
+        return "";
+      }
+      const step = xStepFor(points.length, width, padding);
+      const regions = [];
+      let start = null;
+      rounds.forEach((round, index) => {
+        const active = Math.abs(round.shockComponent) >= 0.5;
+        if (active && start === null) {
+          start = index;
+        }
+        if (!active && start !== null) {
+          regions.push({ start, end: index - 1 });
+          start = null;
+        }
+      });
+      if (start !== null) {
+        regions.push({ start, end: rounds.length - 1 });
+      }
+      return regions.map((region) => {
+        const x1 = Math.max(padding, region.start === 0 ? padding : points[region.start].x - step / 2);
+        const x2 = Math.min(width - padding, region.end === points.length - 1 ? width - padding : points[region.end].x + step / 2);
+        const bandWidth = Math.max(2, x2 - x1);
+        return (
+          '<rect x="' + x1.toFixed(2) + '" y="' + padding + '" width="' + bandWidth.toFixed(2) + '" height="' + (height - padding * 2) + '" fill="rgba(61,220,132,0.08)" stroke="rgba(61,220,132,0.32)" stroke-dasharray="5 7"></rect>'
+          + '<text x="' + (x1 + 8).toFixed(2) + '" y="' + (padding + 14).toFixed(2) + '" fill="rgba(61,220,132,0.82)" font-family="Fira Code, monospace" font-size="10">shock regime</text>'
+        );
+      }).join("");
+    }
+
+    function toneForRound(round) {
+      if (round.defaultCount > 0) {
+        return {
+          label: "SYSTEM_OVERRIDE",
+          tagClass: "status-danger",
+          panelClass: "warning-mode",
+          lineColor: "#c7347e",
+          footerBg: "#c7347e",
+          footerColor: "#fff",
+        };
+      }
+      if (round.dumpCount > 0) {
+        return {
+          label: "PRICE_WAR",
+          tagClass: "status-blue",
+          panelClass: "info-mode",
+          lineColor: "#3e8ad6",
+          footerBg: "#3e8ad6",
+          footerColor: "#fff",
+        };
+      }
+      if (Math.abs(round.shockComponent) >= 0.5) {
+        return {
+          label: "SHOCK_ACTIVE",
+          tagClass: "status-positive",
+          panelClass: "stable-mode",
+          lineColor: "#3ddc84",
+          footerBg: "#2a9d62",
+          footerColor: "#0a100c",
+        };
+      }
+      if (round.transferVolume > 0) {
+        return {
+          label: "TRANSFER_SYNC",
+          tagClass: "status-blue",
+          panelClass: "info-mode",
+          lineColor: "#3e8ad6",
+          footerBg: "#2a9d62",
+          footerColor: "#0a100c",
+        };
+      }
+      return {
+        label: "STABLE",
+        tagClass: "status-neutral",
+        panelClass: "stable-mode",
+        lineColor: "#2a9d62",
+        footerBg: "#2a9d62",
+        footerColor: "#0a100c",
+      };
+    }
+
+    function toneForEvent(event) {
+      if (event.tags.includes("default")) {
+        return { tagClass: "status-danger", lineColor: "#c7347e", panelClass: "warning-mode" };
+      }
+      if (event.tags.includes("dump")) {
+        return { tagClass: "status-blue", lineColor: "#3e8ad6", panelClass: "info-mode" };
+      }
+      if (event.tags.includes("shock")) {
+        return { tagClass: "status-positive", lineColor: "#3ddc84", panelClass: "stable-mode" };
+      }
+      return { tagClass: "status-neutral", lineColor: "#2a9d62", panelClass: "stable-mode" };
+    }
+
+    function toneForAgent(agent) {
+      if (agent.defaultFlag) {
+        return { label: "DEFAULT", tagClass: "status-danger" };
+      }
+      if (agent.dumpFlag) {
+        return { label: "DUMP", tagClass: "status-blue" };
+      }
+      if (agent.transferIn > 0 || agent.transferOut > 0) {
+        return { label: "TRANSFER", tagClass: "status-blue" };
+      }
+      return { label: "STABLE", tagClass: "status-neutral" };
+    }
+
+    function serviceTagClass(rate) {
+      if (rate < 0.9) return "status-danger";
+      if (rate < 0.98) return "status-blue";
+      return "status-positive";
+    }
+
+    function syncControls() {
+      const round = currentRound();
+      controls.roundSlider.max = Math.max(0, data.roundsData.length - 1);
+      controls.roundSlider.value = String(state.roundIndex);
+      controls.metricSelect.value = state.metric;
+      controls.agentSelect.value = state.agent;
+      controls.shockScale.value = String(state.shockScale);
+      controls.demandBias.value = String(state.demandBias);
+      controls.roundSliderValue.textContent = "R" + round.round;
+      controls.metricSelectValue.textContent = state.metric;
+      controls.agentSelectValue.textContent = state.agent;
+      controls.shockScaleValue.textContent = state.shockScale.toFixed(1) + "x";
+      controls.demandBiasValue.textContent = (state.demandBias >= 0 ? "+" : "") + state.demandBias;
+      controls.chartViewButtons.forEach((button) => {
+        const isActive = button.dataset.chartView === state.chartView;
+        button.classList.toggle("active", isActive);
+      });
+      controls.marketPane.classList.toggle("active", state.chartView === "market");
+      controls.agentPane.classList.toggle("active", state.chartView === "agent");
+    }
+
+    function setOverview() {
+      document.getElementById("hero-strategy").textContent = data.meta.strategy + " / " + (data.meta.scenario || "baseline");
+      document.getElementById("hero-seed").textContent = data.meta.seed;
+      document.getElementById("hero-rounds").textContent = runtime.active ? runtime.targetRounds : data.meta.rounds;
+      document.getElementById("hero-agents").textContent = data.meta.agents.length;
+      document.getElementById("kpi-profit").textContent = formatMoney(data.overview.totalProfit);
+      document.getElementById("kpi-fulfillment").textContent = formatPercent(data.overview.fulfillmentRatio);
+      document.getElementById("kpi-fulfillment-bar").style.width = Math.max(2, data.overview.fulfillmentRatio * 100) + "%";
+      document.getElementById("kpi-winner").textContent = data.overview.winner || "--";
+      document.getElementById("kpi-transfer").textContent = formatNumber(data.overview.transferVolume, 1);
+      document.getElementById("kpi-stress-copy").textContent = "Backlog " + formatNumber(data.overview.backlogEnd || 0, 1) + " | defaults " + formatNumber(data.overview.defaultEvents || 0, 0) + " | reallocated " + formatNumber(data.overview.reallocatedVolume || 0, 1);
+    }
+
+    function buildAgentOptions() {
+      const selected = data.agents.some((agent) => agent.name === state.agent) ? state.agent : "all";
+      controls.agentSelect.innerHTML = "";
+      [{ value: "all", label: "All agents" }]
+        .concat(data.agents.map((agent) => ({ value: agent.name, label: agent.name })))
+        .forEach((option) => {
+          const node = document.createElement("option");
+          node.value = option.value;
+          node.textContent = option.label;
+          controls.agentSelect.appendChild(node);
+        });
+      state.agent = selected;
+      controls.agentSelect.value = selected;
+    }
+
+    function setupControls() {
+      controls.roundSlider.max = Math.max(0, data.roundsData.length - 1);
+      controls.metricSelect.value = state.metric;
+      controls.agentSelect.value = state.agent;
+
+      controls.roundSlider.addEventListener("input", () => {
+        state.roundIndex = Number(controls.roundSlider.value);
+        render();
+      });
+
+      controls.metricSelect.addEventListener("change", () => {
+        state.metric = controls.metricSelect.value;
+        render();
+      });
+
+      controls.agentSelect.addEventListener("change", () => {
+        state.agent = controls.agentSelect.value;
+        render();
+      });
+
+      controls.shockScale.addEventListener("input", () => {
+        state.shockScale = Number(controls.shockScale.value);
+        if (runtime.active) {
+          updateRuntimeLinks();
+        }
+        render();
+      });
+
+      controls.demandBias.addEventListener("input", () => {
+        state.demandBias = Number(controls.demandBias.value);
+        if (runtime.active) {
+          updateRuntimeLinks();
+        }
+        render();
+      });
+
+      document.querySelectorAll("[data-toggle]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const key = button.dataset.toggle;
+          toggles[key] = !toggles[key];
+          button.classList.toggle("active", toggles[key]);
+          render();
+        });
+      });
+
+      controls.chartViewButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          state.chartView = button.dataset.chartView || "market";
+          render();
+        });
+      });
+
+      window.addEventListener("keydown", (event) => {
+        if (event.target instanceof HTMLElement) {
+          const tagName = event.target.tagName;
+          if (tagName === "INPUT" || tagName === "SELECT" || event.target.isContentEditable) {
+            return;
+          }
+        }
+
+        if (event.key === "ArrowLeft" && state.roundIndex > 0) {
+          state.roundIndex -= 1;
+          render();
+        }
+
+        if (event.key === "ArrowRight" && state.roundIndex < data.roundsData.length - 1) {
+          state.roundIndex += 1;
+          render();
+        }
+      });
+
+      if (runtime.active && controls.runtimeForm) {
+        controls.runtimeForm.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          const nextOptions = readRuntimeOptions();
+          const query = runtimeQuery(nextOptions);
+          window.history.replaceState({}, "", "?" + query);
+          try {
+            await bootstrapRuntime(nextOptions, false);
+          } catch (error) {
+            stopRuntimeStream();
+            setRuntimeStatus("error", "status-danger");
+          }
+        });
+
+        [controls.runtimeSeed, controls.runtimeRounds, controls.runtimeAgentMode, controls.runtimeScenario].forEach((node) => {
+          if (!node) {
+            return;
+          }
+          node.addEventListener("input", updateRuntimeLinks);
+          node.addEventListener("change", updateRuntimeLinks);
+        });
+        updateRuntimeLinks();
+      }
+    }
+
+    function activeAgents() {
+      return state.agent === "all" ? data.agents : data.agents.filter((agent) => agent.name === state.agent);
+    }
+
+    function renderMarketChart() {
+      const width = 860;
+      const height = 240;
+      const padding = 28;
+      const demand = data.market.demand;
+      const sales = data.market.sales;
+      const projected = projectedDemandSeries();
+      const range = seriesRange(demand.concat(sales, projected), true);
+      const scaleY = createScale(range.min, range.max, height, padding);
+      const demandPoints = buildPoints(demand, width, height, padding, scaleY);
+      const salesPoints = buildPoints(sales, width, height, padding, scaleY);
+      const projectedPoints = buildPoints(projected, width, height, padding, scaleY);
+      const selectedRound = currentRound();
+      const selectedDemand = demandPoints[state.roundIndex];
+      const selectedSales = salesPoints[state.roundIndex];
+      const selectedProjected = projectedPoints[state.roundIndex];
+
+      controls.marketChart.setAttribute("viewBox", "0 0 " + width + " " + height);
+      controls.marketChart.setAttribute("preserveAspectRatio", "none");
+      const shockBands = buildShockBands(data.roundsData, demandPoints, width, height, padding);
+      const overlays = data.roundsData.map((round, index) => {
+        if (!demandPoints[index]) return "";
+        const x = demandPoints[index].x;
+        let markup = "";
+        if (toggles.defaults && round.defaultCount > 0) {
+          markup += '<rect x="' + (x - 4).toFixed(2) + '" y="' + (padding + 20) + '" width="8" height="8" fill="#c7347e"></rect>';
+        }
+        if (toggles.dumps && round.dumpCount > 0) {
+          markup += '<rect x="' + (x - 4).toFixed(2) + '" y="' + (padding + 34) + '" width="8" height="8" fill="#3e8ad6"></rect>';
+        }
+        if (toggles.transfers && round.transferVolume > 0) {
+          markup += '<rect x="' + (x - 4).toFixed(2) + '" y="' + (padding + 48) + '" width="8" height="8" fill="#fff"></rect>';
+        }
+        return markup;
+      }).join("");
+
+      controls.marketChart.innerHTML =
+        buildGrid(width, height, padding, Math.max(demand.length, 2), 5)
+        + buildYAxis(range.min, range.max, height, padding)
+        + shockBands
+        + overlays
+        + '<path d="' + buildPath(demandPoints) + '" fill="none" stroke="#3ddc84" stroke-width="2"></path>'
+        + '<path d="' + buildPath(salesPoints) + '" fill="none" stroke="#fff" stroke-width="1.7"></path>'
+        + '<path d="' + buildPath(projectedPoints) + '" fill="none" stroke="#3e8ad6" stroke-width="1.7" stroke-dasharray="5 5"></path>'
+        + '<line x1="' + selectedDemand.x.toFixed(2) + '" y1="' + padding + '" x2="' + selectedDemand.x.toFixed(2) + '" y2="' + (height - padding).toFixed(2) + '" stroke="rgba(255,255,255,0.35)" stroke-width="1.1"></line>'
+        + '<rect x="' + (selectedDemand.x - 4).toFixed(2) + '" y="' + (selectedDemand.y - 4).toFixed(2) + '" width="8" height="8" fill="#0a100c" stroke="#3ddc84" stroke-width="2"></rect>'
+        + '<rect x="' + (selectedSales.x - 4).toFixed(2) + '" y="' + (selectedSales.y - 4).toFixed(2) + '" width="8" height="8" fill="#0a100c" stroke="#fff" stroke-width="2"></rect>'
+        + '<rect x="' + (selectedProjected.x - 4).toFixed(2) + '" y="' + (selectedProjected.y - 4).toFixed(2) + '" width="8" height="8" fill="#0a100c" stroke="#3e8ad6" stroke-width="2"></rect>'
+        + buildRoundLabels(data.market.rounds, width, height, padding);
+
+      if (state.chartView === "market") {
+        controls.chartPanelTitle.textContent = "Demand / sales / projected shock trace";
+        controls.chartPanelLegend.innerHTML = [
+          '<span class="status-tag status-positive">Demand</span>',
+          '<span class="status-tag status-neutral">Sales</span>',
+          '<span class="status-tag status-blue">Projection</span>'
+        ].join("");
+      }
+
+      controls.marketReadout.textContent =
+        "> R" + selectedRound.round
+        + " | demand " + formatNumber(selectedRound.demandTrue, 0)
+        + " | sales " + formatNumber(selectedRound.marketTotalSales, 0)
+        + " | projected " + formatNumber(projected[state.roundIndex], 0)
+        + " | shock " + formatNumber(selectedRound.shockComponent, 1);
+    }
+
+    function renderAgentChart() {
+      const visible = activeAgents();
+      const width = 860;
+      const height = 240;
+      const padding = 28;
+      const seriesCollection = visible.map((agent) => ({
+        name: agent.name,
+        color: agent.color,
+        values: agent.series[state.metric],
+      }));
+      const allValues = seriesCollection.flatMap((series) => series.values);
+      const range = seriesRange(allValues, state.metric === "cumProfit" || state.metric === "profit");
+      const scaleY = createScale(range.min, range.max, height, padding);
+      const markerX = padding + xStepFor(data.market.rounds.length, width, padding) * state.roundIndex;
+
+      controls.agentChart.setAttribute("viewBox", "0 0 " + width + " " + height);
+      controls.agentChart.setAttribute("preserveAspectRatio", "none");
+
+      const paths = seriesCollection.map((series) => {
+        const points = buildPoints(series.values, width, height, padding, scaleY);
+        const selected = points[state.roundIndex];
+        return (
+          '<path d="' + buildPath(points) + '" fill="none" stroke="' + series.color + '" stroke-width="2"></path>'
+          + '<rect x="' + (selected.x - 4).toFixed(2) + '" y="' + (selected.y - 4).toFixed(2) + '" width="8" height="8" fill="#0a100c" stroke="' + series.color + '" stroke-width="2"></rect>'
+        );
+      }).join("");
+
+      controls.agentChart.innerHTML =
+        buildGrid(width, height, padding, Math.max(data.market.rounds.length, 2), 5)
+        + buildYAxis(range.min, range.max, height, padding)
+        + paths
+        + '<line x1="' + markerX.toFixed(2) + '" y1="' + padding + '" x2="' + markerX.toFixed(2) + '" y2="' + (height - padding).toFixed(2) + '" stroke="rgba(255,255,255,0.35)" stroke-width="1.1"></line>'
+        + buildRoundLabels(data.market.rounds, width, height, padding);
+
+      if (state.chartView === "agent") {
+        controls.chartPanelTitle.textContent = "Agent metric / " + metricLabel(state.metric);
+        controls.chartPanelLegend.innerHTML = visible.map((agent) => {
+          return '<span class="status-tag" style="color:' + agent.color + ';border-color:' + agent.color + ';">' + escapeHtml(agent.name) + "</span>";
+        }).join("");
+      }
+
+      const round = currentRound();
+      const readout = round.agents
+        .filter((agent) => state.agent === "all" || agent.name === state.agent)
+        .map((agent) => {
+          return agent.name + " " + formatMetricValue(state.metric, agent[state.metric]);
+        })
+        .join(" | ");
+      controls.agentReadout.textContent = "> R" + round.round + " | " + metricLabel(state.metric) + " | " + readout;
+    }
+
+    function renderRoundDetails() {
+      const round = currentRound();
+      const tone = toneForRound(round);
+
+      controls.focusPanel.classList.remove("warning-mode", "info-mode", "stable-mode");
+      controls.focusPanel.classList.add(tone.panelClass);
+
+      document.getElementById("focus-round-label").textContent = "R" + round.round + " / inspection";
+      document.getElementById("focus-round-copy").textContent =
+        "Demand " + formatNumber(round.demandTrue, 0)
+        + ", sales " + formatNumber(round.marketTotalSales, 0)
+        + ", observed gap " + formatNumber(round.demandGap, 1)
+        + ", average price " + formatNumber(round.marketAvgPrice, 2) + ".";
+      document.getElementById("detail-regime").textContent = tone.label.replaceAll("_", " ");
+      document.getElementById("detail-spread").textContent = formatNumber(round.agentSpread, 2);
+      document.getElementById("detail-gap").textContent = formatNumber(round.demandGap, 1);
+      document.getElementById("detail-shock").textContent = formatNumber(round.shockComponent, 1);
+      document.getElementById("detail-transfer").textContent = formatNumber(round.transferVolume, 1);
+      document.getElementById("detail-backlog").textContent = formatNumber(round.backlogTotal || 0, 1);
+      document.getElementById("detail-fulfillment").textContent = formatPercent(round.fulfillmentRatio);
+      document.getElementById("detail-fulfillment-bar").style.width = Math.max(2, round.fulfillmentRatio * 100) + "%";
+
+      const regimeTag = document.getElementById("detail-regime-tag");
+      regimeTag.className = "status-tag " + tone.tagClass;
+      regimeTag.textContent = tone.label;
+
+      document.getElementById("footer-node").textContent = "NODE: R" + round.round;
+      document.getElementById("footer-total").textContent = runtime.active
+        ? "TOTAL: " + data.roundsData.length + "/" + runtime.targetRounds
+        : "TOTAL: " + data.meta.rounds;
+      document.getElementById("footer-status").textContent = "STATUS: " + tone.label;
+      document.getElementById("footer-agent").textContent = "AGENT: " + String(state.agent).toUpperCase();
+      document.getElementById("footer-metric").textContent = "METRIC: " + String(state.metric).toUpperCase();
+      controls.footerBar.style.background = tone.footerBg;
+      controls.footerBar.style.color = tone.footerColor;
+    }
+
+    function renderRoundAgentLog() {
+      const round = currentRound();
+      const rows = round.agents
+        .map((agent) => {
+          const meta = agentMeta[agent.name];
+          const tone = toneForAgent(agent);
+          const serviceWidth = Math.max(2, agent.serviceRate * 100);
+          return `
+            <div class="log-entry clickable ${state.agent === agent.name ? "active" : ""}" data-agent="${escapeHtml(agent.name)}" style="border-left-color:${meta.color};">
+              <div class="log-label">[AGENT: ${escapeHtml(agent.name)}] <span class="status-tag ${tone.tagClass}">${tone.label}</span></div>
+              <p class="log-body">
+                &gt; ${escapeHtml(formatActionText(agent.actionText))}
+                <span class="muted-copy">price ${formatNumber(agent.price, 2)} | qty ${formatNumber(agent.quantity, 0)} | sold ${formatNumber(agent.realizedSales, 1)} | short ${formatNumber(agent.shortage, 1)} | pnl ${formatMoney(agent.profit)}</span>
+                <span class="muted-copy">why: ${escapeHtml(agent.decisionReason || "no structured trace")}</span>
+                ${agent.strategyUpdateReason ? `<span class="muted-copy">learned: ${escapeHtml(agent.strategyUpdateReason)}</span>` : ""}
+              </p>
+              <div class="loading-bar-container">
+                <div class="loading-bar" style="width:${serviceWidth}%;background:${meta.color};box-shadow:0 0 8px ${meta.color};"></div>
+              </div>
+            </div>
+          `;
+        })
+        .join("");
+
+      controls.roundAgentLog.innerHTML = rows || '<div class="empty-log">&gt; no agent rows match the current filter</div>';
+      controls.roundAgentLog.querySelectorAll("[data-agent]").forEach((node) => {
+        node.addEventListener("click", () => {
+          const next = node.getAttribute("data-agent");
+          state.agent = next || "all";
+          controls.agentSelect.value = state.agent;
+          render();
+        });
+      });
+    }
+
+    function renderAgentCards() {
+      const round = currentRound();
+      const cards = round.agents
+        .map((agent) => {
+          const meta = agentMeta[agent.name];
+          const tone = toneForAgent(agent);
+          return `
+            <article class="comparison-card agent-card ${state.agent === agent.name ? "active" : ""}" data-agent="${escapeHtml(agent.name)}" data-tag="${escapeHtml(tagText(agent.name))}" style="--agent-color:${meta.color};border-left-color:${meta.color};">
+              <div class="panel-header">
+                <div>
+                  <span class="step-tag">${escapeHtml(meta.role)}</span>
+                  <h3 class="panel-title">${escapeHtml(agent.name)}</h3>
+                </div>
+                <span class="status-tag ${serviceTagClass(agent.serviceRate)}">${formatPercent(agent.serviceRate)}</span>
+              </div>
+
+              <div class="flow-strip" style="color:${meta.color};">
+                <span class="flow-node">PX ${formatNumber(agent.price, 2)}</span>
+                <span class="flow-node">Q ${formatNumber(agent.quantity, 0)}</span>
+                <span class="flow-node">FC ${formatNumber(agent.forecastDemand, 1)}</span>
+              </div>
+
+              <div class="system-message-box">&gt; ${escapeHtml(formatActionText(agent.actionText))}</div>
+              <p class="agent-copy">${escapeHtml(agent.decisionReason || "No structured decision trace was recorded for this action.")}</p>
+              ${agent.strategyUpdateReason ? `<p class="agent-copy">Strategy update: ${escapeHtml(agent.strategyUpdateReason)}</p>` : ""}
+              <p class="agent-copy">${escapeHtml(meta.persona)}</p>
+
+              <div class="agent-params">
+                <div class="param-line"><span class="param-label">Round pnl</span><span class="param-value">${formatMoney(agent.profit)}</span></div>
+                <div class="param-line"><span class="param-label">Cum pnl</span><span class="param-value">${formatMoney(agent.cumProfit)}</span></div>
+                <div class="param-line"><span class="param-label">Reputation</span><span class="param-value">${formatPercent(agent.reputation)}</span></div>
+                <div class="param-line"><span class="param-label">Flow</span><span class="param-value">${formatNumber(agent.transferIn, 1)} in / ${formatNumber(agent.transferOut, 1)} out</span></div>
+                <div class="param-line"><span class="param-label">Segments</span><span class="param-value">train ${formatNumber((agent.segmentAllocations || {}).training_burst || 0, 0)} / ent ${formatNumber((agent.segmentAllocations || {}).enterprise_sla || 0, 0)} / spot ${formatNumber((agent.segmentAllocations || {}).spot_workload || 0, 0)}</span></div>
+                <div class="param-line"><span class="param-label">SLA queue</span><span class="param-value">backlog ${formatNumber(agent.backlogEnd || 0, 1)} / late ${formatNumber(agent.lateUnits || 0, 1)}</span></div>
+                ${agent.strategyState ? `<div class="param-line"><span class="param-label">Strategy</span><span class="param-value">P ${formatNumber(agent.strategyState.price_aggressiveness, 2)} / I ${formatNumber(agent.strategyState.inventory_caution, 2)} / R ${formatNumber(agent.strategyState.risk_tolerance, 2)}</span></div>` : ""}
+                ${agent.personalityLabel ? `<div class="param-line"><span class="param-label">Personality</span><span class="param-value">${escapeHtml(agent.personalityLabel)}</span></div>` : ""}
+                <div class="param-line"><span class="param-label">State</span><span class="param-value"><span class="status-tag ${tone.tagClass}">${tone.label}</span></span></div>
+              </div>
+            </article>
+          `;
+        })
+        .join("");
+
+      controls.agentGrid.innerHTML = cards || '<div class="empty-log">&gt; no agents match the current filter</div>';
+      controls.agentGrid.querySelectorAll("[data-agent]").forEach((node) => {
+        node.addEventListener("click", () => {
+          const next = node.getAttribute("data-agent");
+          state.agent = next || "all";
+          controls.agentSelect.value = state.agent;
+          render();
+        });
+      });
+    }
+
+    function renderEvents() {
+      const items = data.events
+        .filter((event) => {
+          if (event.tags.includes("shock") && !toggles.shocks) return false;
+          if (event.tags.includes("default") && !toggles.defaults) return false;
+          if (event.tags.includes("dump") && !toggles.dumps) return false;
+          if (event.tags.includes("transfer") && !toggles.transfers) return false;
+          return true;
+        })
+        .map((event) => {
+          const tone = toneForEvent(event);
+          return `
+            <div class="log-entry clickable" data-round="${event.round}" style="border-left-color:${tone.lineColor};">
+              <div class="log-label">[ROUND_${event.round}] <span class="status-tag ${tone.tagClass}">${event.tags.join(" | ")}</span></div>
+              <p class="log-body">
+                &gt; ${escapeHtml(event.headline)}
+                <span class="muted-copy">${escapeHtml(event.details)} | impact ${event.score.toFixed(1)}</span>
+              </p>
+            </div>
+          `;
+        })
+        .join("");
+
+      controls.eventList.innerHTML = items || '<div class="empty-log">&gt; no events pass the current overlay filters</div>';
+      controls.eventList.querySelectorAll("[data-round]").forEach((node) => {
+        node.addEventListener("click", () => {
+          state.roundIndex = Number(node.getAttribute("data-round")) || 0;
+          render();
+        });
+      });
+    }
+
+    function syncEventPanelHeight() {
+      if (!controls.focusPanel || !controls.eventPanel) {
+        return;
+      }
+      if (window.innerWidth <= 1220) {
+        controls.eventPanel.style.height = "";
+        controls.eventList.style.maxHeight = "";
+        return;
+      }
+
+      const focusRect = controls.focusPanel.getBoundingClientRect();
+      const eventRect = controls.eventPanel.getBoundingClientRect();
+      const available = Math.min(420, Math.floor(focusRect.bottom - eventRect.top));
+
+      if (available <= 160) {
+        controls.eventPanel.style.height = "";
+        controls.eventList.style.maxHeight = "";
+        return;
+      }
+
+      controls.eventPanel.style.height = available + "px";
+
+      const panelStyles = window.getComputedStyle(controls.eventPanel);
+      const contentBoxHeight =
+        available
+        - (parseFloat(panelStyles.paddingTop || "0") || 0)
+        - (parseFloat(panelStyles.paddingBottom || "0") || 0);
+      const header = controls.eventPanel.querySelector(".panel-header");
+      const headerHeight = header ? header.getBoundingClientRect().height : 0;
+      const listTop = parseFloat(window.getComputedStyle(controls.eventList).marginTop || "0") || 0;
+      const maxHeight = Math.max(120, Math.floor(contentBoxHeight - headerHeight - listTop));
+      controls.eventList.style.maxHeight = maxHeight + "px";
+    }
+
+    function scheduleEventPanelSync() {
+      requestAnimationFrame(() => {
+        syncEventPanelHeight();
+        requestAnimationFrame(syncEventPanelHeight);
+      });
+      window.setTimeout(syncEventPanelHeight, 80);
+      window.setTimeout(syncEventPanelHeight, 220);
+    }
+
+    function renderControlStream() {
+      if (runtime.active && runtime.logLines.length) {
+        controls.controlStream.innerHTML = runtime.logLines.join("");
+        return;
+      }
+      const round = currentRound();
+      const lines = [
+        '<div class="stream-line"><span class="stream-prefix">[CTRL]</span><span class="stream-text">&gt; focus --round R'
+        + round.round
+        + ' --metric '
+        + escapeHtml(state.metric)
+        + ' --agent '
+        + escapeHtml(state.agent)
+        + '</span></div>'
+      ];
+      round.agents.forEach((agent) => {
+        const meta = agentMeta[agent.name];
+        lines.push(
+          '<div class="stream-line">'
+          + '<span class="stream-prefix">[R' + round.round + ']</span>'
+          + '<span class="stream-agent" style="color:' + meta.color + ';">' + escapeHtml(agent.name) + '</span>'
+          + '<span class="stream-text">' + escapeHtml(formatActionText(agent.actionText)) + '</span>'
+          + '</div>'
+        );
+      });
+      controls.controlStream.innerHTML = lines.join("");
+    }
+
+    function render() {
+      syncControls();
+      renderMarketChart();
+      renderAgentChart();
+      renderRoundDetails();
+      renderRoundAgentLog();
+      renderAgentCards();
+      renderEvents();
+      renderControlStream();
+      scheduleEventPanelSync();
+    }
+
+    setOverview();
+    buildAgentOptions();
+    setupControls();
+    render();
+    if (runtime.active) {
+      bootstrapRuntime(runtime.currentOptions, true).catch(() => {
+        stopRuntimeStream();
+        setRuntimeStatus("error", "status-danger");
+      });
+    }
+    window.addEventListener("resize", () => {
+      scheduleEventPanelSync();
+    });
+    window.addEventListener("load", scheduleEventPanelSync);
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => {
+        scheduleEventPanelSync();
+      });
+    }
+  </script>
+</body>
+</html>
