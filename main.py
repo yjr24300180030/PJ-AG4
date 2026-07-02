@@ -65,14 +65,35 @@ def _resolve_llm_config(
     llm_model: str | None,
 ) -> tuple[str | None, str | None, str | None]:
     load_runtime_env()
-    resolved_api_key = llm_api_key or os.getenv("PJ_AG4_OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
-    resolved_base_url = llm_base_url or os.getenv("PJ_AG4_OPENAI_BASE_URL") or "http://127.0.0.1:8045/v1"
-    resolved_model = llm_model or os.getenv("PJ_AG4_OPENAI_MODEL") or "gemini-3-flash"
-    if _requires_llm(agent_modes) and not resolved_api_key:
-        raise RuntimeError(
-            "LLM experiment matrix requires PJ_AG4_OPENAI_API_KEY or OPENAI_API_KEY. "
-            "Set it in the shell or in .env before running python main.py."
-        )
+    resolved_api_key = (
+        llm_api_key
+        or os.getenv("PJ_AG4_LLM_API_KEY")
+        or os.getenv("PJ_AG4_OPENAI_API_KEY")
+        or os.getenv("OPENAI_API_KEY")
+    )
+    resolved_base_url = (
+        llm_base_url
+        or os.getenv("PJ_AG4_LLM_BASE_URL")
+        or os.getenv("PJ_AG4_OPENAI_BASE_URL")
+    )
+    resolved_model = (
+        llm_model
+        or os.getenv("PJ_AG4_LLM_MODEL")
+        or os.getenv("PJ_AG4_OPENAI_MODEL")
+        or "gemini-3-flash"
+    )
+    if _requires_llm(agent_modes):
+        missing = []
+        if not resolved_api_key:
+            missing.append("PJ_AG4_LLM_API_KEY or --llm-api-key")
+        if not resolved_base_url:
+            missing.append("PJ_AG4_LLM_BASE_URL or --llm-base-url")
+        if missing:
+            raise RuntimeError(
+                "LLM experiment matrix requires "
+                + " and ".join(missing)
+                + ". Set them in the shell or in .env before running python main.py."
+            )
     return resolved_base_url, resolved_api_key, resolved_model
 
 
@@ -166,10 +187,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             )
 
-    summary_path = args.output_root / "summary.csv"
+    summary_path = args.output_root / "simulation_result.csv"
     _write_summary(summary_path, [_artifact_to_summary(artifact) for artifact in artifacts])
     print(f"Matrix runs: {len(artifacts)}")
-    print(f"Summary CSV: {summary_path}")
+    print(f"Simulation result CSV: {summary_path}")
     return 0
 
 

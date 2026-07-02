@@ -6,8 +6,8 @@
 - 轮数：`rounds=12`
 - Agent 数量：3 个，分别是 `Hyperscaler`、`PremiumCloud`、`SpotBroker`
 - 场景：`baseline`、`price_war`、`supply_shock`、`high_volatility`、`no_reputation`、`no_transfer`
-- LLM endpoint：本地 OpenAI-compatible endpoint，模型 `gemini-3-flash`
-- 最新对齐汇总文件：`summary.csv`
+- LLM API 服务：自部署或云端可访问接口，模型 `gemini-3-flash`
+- 最新对齐汇总文件：`simulation_result.csv`
 
 本轮最终比较 4 类模式：
 

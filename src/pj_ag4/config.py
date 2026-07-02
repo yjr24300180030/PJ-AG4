@@ -138,7 +138,7 @@ class AgentConfig:
 
 @dataclass(frozen=True)
 class LLMConfig:
-    base_url: str = "http://127.0.0.1:8045/v1"
+    base_url: str | None = None
     api_key: str | None = None
     model: str = "gemini-3-flash"
     temperature: float = 0.0
@@ -298,11 +298,25 @@ def default_simulation_config(
 ) -> SimulationConfig:
     _load_runtime_env()
     agents = load_agent_configs(agents_profile, source=agents_file)
-    resolved_llm_api_key = llm_api_key or os.getenv("PJ_AG4_OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+    resolved_llm_api_key = (
+        llm_api_key
+        or os.getenv("PJ_AG4_LLM_API_KEY")
+        or os.getenv("PJ_AG4_OPENAI_API_KEY")
+        or os.getenv("OPENAI_API_KEY")
+    )
     llm_config = LLMConfig(
-        base_url=llm_base_url or os.getenv("PJ_AG4_OPENAI_BASE_URL") or "http://127.0.0.1:8045/v1",
+        base_url=(
+            llm_base_url
+            or os.getenv("PJ_AG4_LLM_BASE_URL")
+            or os.getenv("PJ_AG4_OPENAI_BASE_URL")
+        ),
         api_key=resolved_llm_api_key,
-        model=llm_model or os.getenv("PJ_AG4_OPENAI_MODEL") or "gemini-3-flash",
+        model=(
+            llm_model
+            or os.getenv("PJ_AG4_LLM_MODEL")
+            or os.getenv("PJ_AG4_OPENAI_MODEL")
+            or "gemini-3-flash"
+        ),
     )
     market = _market_for_scenario(scenario, MarketConfig())
     return SimulationConfig(

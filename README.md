@@ -51,7 +51,7 @@ outputs/                 已整理的实验数据
 | --- | --- | --- |
 | 代码入口 | `python main.py` | 已提供 |
 | 环境文件 | `requirements.txt` / `pyproject.toml` | 已提供 |
-| 结果汇总 | `outputs/llm-experiments/final/summary.csv` | 已提供 |
+| Simulation result | `outputs/llm-experiments/final/simulation_result.csv` | 已提供 |
 | 复现实验脚本 | `bash run.sh` | 已提供 |
 | GitHub 链接 | `https://github.com/yjr24300180030/PJ-AG4` | 已提供 |
 
@@ -256,7 +256,7 @@ python main.py
 生成的主要文件：
 
 ```text
-outputs/reproduce/summary.csv
+outputs/reproduce/simulation_result.csv
 outputs/reproduce/runs/
 ```
 
@@ -277,18 +277,18 @@ bash run.sh
 
 ### 2. 配置 LLM 环境
 
-本地需要有 OpenAI-compatible 网关，例如：
+LLM 策略只要求能访问一个大模型 API 服务。这个服务可以是自部署模型、云端模型服务，或团队自己的转发接口；项目不绑定具体供应商或特定接入形态。下面用一个通用 API 地址占位示例：
 
 ```text
-PJ_AG4_OPENAI_BASE_URL=http://127.0.0.1:8045/v1
+PJ_AG4_LLM_BASE_URL=https://your-llm-api.example.com/v1
 ```
 
 默认矩阵包含 LLM agent，因此运行前需要在 `.env` 或 shell 中配置：
 
 ```env
-PJ_AG4_OPENAI_API_KEY=your-api-key-here
-PJ_AG4_OPENAI_BASE_URL=http://127.0.0.1:8045/v1
-PJ_AG4_OPENAI_MODEL=gemini-3-flash
+PJ_AG4_LLM_API_KEY=your-api-key-here
+PJ_AG4_LLM_BASE_URL=https://your-llm-api.example.com/v1
+PJ_AG4_LLM_MODEL=gemini-3-flash
 ```
 
 ## 快速检查
@@ -302,5 +302,5 @@ AGENT_MODES=heuristic SCENARIOS=baseline ROUNDS=3 OUTPUT_ROOT=outputs/smoke bash
 成功后会生成：
 
 ```text
-outputs/smoke/summary.csv
+outputs/smoke/simulation_result.csv
 ```

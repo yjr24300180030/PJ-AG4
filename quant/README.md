@@ -37,7 +37,7 @@
 - `rule_inventory_guard`
 - `llm`
 
-其中 `llm` 需要本地可用的 OpenAI-compatible 端点，以及 API key 或 `.env` 配置。
+其中 `llm` 需要可访问的大模型 API 地址，以及 API key 或 `.env` 配置。该服务可以是自部署模型、云端模型或转发接口，不限定具体供应商。
 
 ## 快速开始
 
@@ -163,9 +163,9 @@ write_sensitivity_csv(Path("quant/outputs/api_sensitivity/summary.csv"), sens_su
 
 如果 benchmark 里包含 `llm` 策略，优先使用仓库根目录的 `.env` 或系统环境变量：
 
-- `PJ_AG4_OPENAI_API_KEY`
-- `PJ_AG4_OPENAI_BASE_URL`
-- `PJ_AG4_OPENAI_MODEL`
+- `PJ_AG4_LLM_API_KEY`
+- `PJ_AG4_LLM_BASE_URL`
+- `PJ_AG4_LLM_MODEL`
 
 也可以直接通过脚本参数传入：
 

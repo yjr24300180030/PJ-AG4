@@ -9,6 +9,8 @@ from ..config import LLMConfig
 def build_openai_client(llm_config: LLMConfig):
     from openai import OpenAI
 
+    if not llm_config.base_url:
+        raise ValueError("missing LLM API base URL")
     return OpenAI(
         base_url=llm_config.base_url,
         api_key=llm_config.api_key,

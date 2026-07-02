@@ -6,7 +6,7 @@
 
 - 各场景的 `simulation_results.csv`
 - 各场景的 `simulation_report.md`
-- 跨场景汇总文件：`summary.csv`、`agent-summary.csv`
+- 跨场景汇总文件：`simulation_result.csv`、`agent-summary.csv`
 - 对齐实验说明：`report.md`
 - 最终中文总结：`final-summary.md`
 - CSV 压缩包：`experiment-csvs.zip`
