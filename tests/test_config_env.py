@@ -7,23 +7,33 @@ import pytest
 from pj_ag4.config import default_simulation_config
 
 
+def _clear_llm_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    for key in (
+        "PJ_AG4_LLM_API_KEY",
+        "PJ_AG4_LLM_BASE_URL",
+        "PJ_AG4_LLM_MODEL",
+        "PJ_AG4_OPENAI_API_KEY",
+        "PJ_AG4_OPENAI_BASE_URL",
+        "PJ_AG4_OPENAI_MODEL",
+        "OPENAI_API_KEY",
+    ):
+        monkeypatch.delenv(key, raising=False)
+
+
 def test_default_simulation_config_reads_values_from_dotenv(monkeypatch, tmp_path: Path) -> None:
     env_file = tmp_path / ".env"
     env_file.write_text(
         "\n".join(
             [
-                "PJ_AG4_OPENAI_API_KEY=dotenv-key",
-                "PJ_AG4_OPENAI_BASE_URL=http://127.0.0.1:9000/v1",
-                "PJ_AG4_OPENAI_MODEL=dotenv-model",
+                "PJ_AG4_LLM_API_KEY=dotenv-key",
+                "PJ_AG4_LLM_BASE_URL=http://127.0.0.1:9000/v1",
+                "PJ_AG4_LLM_MODEL=dotenv-model",
             ]
         ),
         encoding="utf-8",
     )
     monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("PJ_AG4_OPENAI_API_KEY", raising=False)
-    monkeypatch.delenv("PJ_AG4_OPENAI_BASE_URL", raising=False)
-    monkeypatch.delenv("PJ_AG4_OPENAI_MODEL", raising=False)
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    _clear_llm_env(monkeypatch)
 
     config = default_simulation_config(agent_mode="llm")
 
@@ -33,23 +43,43 @@ def test_default_simulation_config_reads_values_from_dotenv(monkeypatch, tmp_pat
     assert config.llm.model == "dotenv-model"
 
 
-def test_explicit_arguments_override_dotenv(monkeypatch, tmp_path: Path) -> None:
+def test_legacy_openai_env_names_remain_supported(monkeypatch, tmp_path: Path) -> None:
     env_file = tmp_path / ".env"
     env_file.write_text(
         "\n".join(
             [
-                "PJ_AG4_OPENAI_API_KEY=dotenv-key",
-                "PJ_AG4_OPENAI_BASE_URL=http://127.0.0.1:9000/v1",
-                "PJ_AG4_OPENAI_MODEL=dotenv-model",
+                "PJ_AG4_OPENAI_API_KEY=legacy-key",
+                "PJ_AG4_OPENAI_BASE_URL=http://127.0.0.1:9100/v1",
+                "PJ_AG4_OPENAI_MODEL=legacy-model",
             ]
         ),
         encoding="utf-8",
     )
     monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("PJ_AG4_OPENAI_API_KEY", raising=False)
-    monkeypatch.delenv("PJ_AG4_OPENAI_BASE_URL", raising=False)
-    monkeypatch.delenv("PJ_AG4_OPENAI_MODEL", raising=False)
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    _clear_llm_env(monkeypatch)
+
+    config = default_simulation_config(agent_mode="llm")
+
+    assert config.llm is not None
+    assert config.llm.api_key == "legacy-key"
+    assert config.llm.base_url == "http://127.0.0.1:9100/v1"
+    assert config.llm.model == "legacy-model"
+
+
+def test_explicit_arguments_override_dotenv(monkeypatch, tmp_path: Path) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "PJ_AG4_LLM_API_KEY=dotenv-key",
+                "PJ_AG4_LLM_BASE_URL=http://127.0.0.1:9000/v1",
+                "PJ_AG4_LLM_MODEL=dotenv-model",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    _clear_llm_env(monkeypatch)
 
     config = default_simulation_config(
         agent_mode="llm",

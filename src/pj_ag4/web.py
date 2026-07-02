@@ -44,7 +44,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", type=int, default=7, help="Default random seed")
     parser.add_argument("--agent-mode", choices=("heuristic", "llm", "llm-context", "llm-adaptive"), default="heuristic", help="Default policy backend")
     parser.add_argument("--scenario", choices=("baseline", "price_war", "supply_shock", "high_volatility", "no_reputation", "no_transfer"), default="baseline", help="Default market scenario")
-    parser.add_argument("--llm-base-url", type=str, default=None, help="OpenAI-compatible base URL for LLM mode")
+    parser.add_argument("--llm-base-url", type=str, default=None, help="Base URL for the LLM API service")
     parser.add_argument("--llm-api-key", type=str, default=None, help="API key for LLM mode")
     parser.add_argument("--llm-model", type=str, default=None, help="Model name for LLM mode")
     return parser

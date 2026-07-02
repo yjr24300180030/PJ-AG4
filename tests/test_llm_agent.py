@@ -181,6 +181,9 @@ def test_llm_mode_requires_api_key(monkeypatch, tmp_path) -> None:
     from pj_ag4 import config as config_module
 
     monkeypatch.setattr(config_module, "_load_runtime_env", lambda: None)
+    monkeypatch.delenv("PJ_AG4_LLM_API_KEY", raising=False)
+    monkeypatch.delenv("PJ_AG4_LLM_BASE_URL", raising=False)
+    monkeypatch.delenv("PJ_AG4_LLM_MODEL", raising=False)
     monkeypatch.delenv("PJ_AG4_OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("PJ_AG4_OPENAI_BASE_URL", raising=False)

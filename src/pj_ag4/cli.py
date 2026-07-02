@@ -46,7 +46,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--llm-base-url",
         type=str,
         default=None,
-        help="OpenAI-compatible base URL for LLM mode",
+        help="Base URL for the LLM API service",
     )
     parser.add_argument(
         "--llm-api-key", type=str, default=None, help="API key for LLM mode"

@@ -271,7 +271,7 @@ outputs/final/scenario_sweep/scenario_report.md
 
 ### 3. 跑真实 LLM-adaptive demo
 
-本地需要有 OpenAI-compatible 网关，例如：
+LLM 策略只要求能访问一个大模型 API 服务。这个服务可以是本地部署模型、云端模型服务，或团队自己的转发接口；项目不绑定具体供应商或特定接入形态。下面用一个本地 API 地址举例：
 
 ```text
 http://127.0.0.1:8045/v1
@@ -294,9 +294,9 @@ pj-ag4-run \
 如果使用自己的 key，也可以通过 `.env` 配置：
 
 ```env
-PJ_AG4_OPENAI_API_KEY=your-api-key-here
-PJ_AG4_OPENAI_BASE_URL=http://127.0.0.1:8045/v1
-PJ_AG4_OPENAI_MODEL=gemini-3-flash
+PJ_AG4_LLM_API_KEY=your-api-key-here
+PJ_AG4_LLM_BASE_URL=http://127.0.0.1:8045/v1
+PJ_AG4_LLM_MODEL=gemini-3-flash
 ```
 
 优先级：
