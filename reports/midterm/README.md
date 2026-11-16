@@ -29,10 +29,10 @@
 - `latex/figures/llm_market_fulfillment.png`
 - `latex/figures/llm_agent_state_dynamics.png`
 - `latex/figures/llm_vs_heuristic.png`
-- `figures/profit_evolution.png`
-- `figures/market_fulfillment.png`
-- `figures/agent_state_dynamics.png`
-- `figures/benchmark_comparison.png`
+- `latex/figures/profit_evolution.png`
+- `latex/figures/market_fulfillment.png`
+- `latex/figures/agent_state_dynamics.png`
+- `latex/figures/benchmark_comparison.png`
 
 ## 相关源码
 

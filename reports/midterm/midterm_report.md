@@ -145,15 +145,15 @@ python3 quant/run_sensitivity.py \
 
 Hyperscaler 的服务率很高，但由于持续采用激进低价策略，触发了 30 次 dump 事件，最终累计利润为负。PremiumCloud 依靠高声誉和价格纪律获得最高累计利润。SpotBroker 在轻库存和灵活调价下保持较好利润，但仍存在一定缺货。
 
-![Cumulative Profit by Agent](figures/profit_evolution.png)
+![Cumulative Profit by Agent](latex/figures/profit_evolution.png)
 
 图 1 展示了 30 轮内各 Agent 的累计收益演化。Hyperscaler 从前期开始即承受亏损压力，而 PremiumCloud 和 SpotBroker 在中后段逐渐拉开正收益。
 
-![Market Fulfillment](figures/market_fulfillment.png)
+![Market Fulfillment](latex/figures/market_fulfillment.png)
 
 图 2 展示市场真实需求、实现交付和平均价格变化。整体未履约缺口较小，说明当前默认机制下同行拆借和库存调节能维持较高履约水平。
 
-![Agent State Dynamics](figures/agent_state_dynamics.png)
+![Agent State Dynamics](latex/figures/agent_state_dynamics.png)
 
 图 3 展示库存、声誉和服务率变化。PremiumCloud 声誉保持最高，SpotBroker 保持中等偏高声誉，Hyperscaler 因低价竞争受到定价声誉约束。
 
@@ -167,7 +167,7 @@ benchmark 对比了三类策略配置：默认 heuristic、低价型 rule_price_
 | rule_price_cutter | 1102.02 | 0.9977 | 4.854 |
 | rule_inventory_guard | 2772.93 | 0.9898 | 5.789 |
 
-![Benchmark Comparison](figures/benchmark_comparison.png)
+![Benchmark Comparison](latex/figures/benchmark_comparison.png)
 
 从结果看，库存保护型策略在当前参数下平均市场总利润最高，但履约率略低；低价型策略提高了销量和履约率，但压低了市场价格；默认 heuristic 处于二者之间。这说明模型能够呈现典型的市场经营权衡：价格纪律和库存克制提高利润，但可能牺牲部分服务水平。
 
